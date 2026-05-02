@@ -31,7 +31,10 @@ logger = logging.getLogger("velocity")
 #App lifespan [shared async HTTP client (connection pooling)]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    headers = {"User-Agent": "Velocity-Preflight/1.0"}
+    headers = {
+        "User-Agent": "Velocity-Preflight/1.0",
+        "Accept": "application/vnd.github.v3+json",
+    }
     if GITHUB_TOKEN:
         headers["Authorization"] = f"Bearer {GITHUB_TOKEN}"
     app.state.http_client = httpx.AsyncClient(
@@ -65,6 +68,7 @@ class PreflightRequest(BaseModel):
     github_url: HttpUrl
     playable_url: HttpUrl
     birth_year: int
+    target_program: str = "Unknown YSWS"
 
     @field_validator("birth_year")
     @classmethod
@@ -84,7 +88,13 @@ class PreflightResponse(BaseModel):
     birth_year_check: CheckResult
     playable_url_check: CheckResult
     readme_check: CheckResult
+    anti_fraud_check: CheckResult
     flags: list[str] #human-readable fraud/warning signals
+
+MOCK_SUBMISSION_DB = {
+    "https://github.com/hackclub/sprig": ["Sprig", "High Seas"],
+    "https://github.com/Swamstick911/Forxa": ["Stasis"]
+}
 
 #Helpers
 def parse_github_repo(github_url: str) -> tuple[str, str] | None:
@@ -212,6 +222,57 @@ async def check_readme(
         detail=f"README.md found ({word_count} words). {'No demo link detected' if not has_link else ''}",
     ), flags
 
+async def run_anti_fraud_checks(
+        client: httpx.AsyncClient,
+        owner: str,
+        repo: str, 
+        github_url: str,
+        target_program: str
+) -> tuple[CheckResult, list[str]]:
+    flags: list[str] = []
+
+    #1. Double dip detection
+    clean_url = str(github_url).lower().rstrip('/')
+
+    if clean_url in MOCK_SUBMISSION_DB: 
+        previous_programs = MOCK_SUBMISSION_DB[clean_url]
+
+        #If already submitted to different program, its a double dip!
+        if any(prog != target_program for prog in previous_programs):
+            flags.append(f"Double Dip - Repo previously submitted to {','.join(previous_programs)}.")
+            return CheckResult(
+                passed=False,
+                detail="Double dipping detected: Project submitted to multiple YSWSs"
+            ), flags
+    #2. AI/Mass Code Drop detection
+    commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
+    try:
+        resp = await client.get(f"{commits_url}?per_page=10")
+        if resp.status_code == 200:
+            commits = resp.json()
+            commit_count = len(commits)
+
+            if commit_count == 0:
+                flags.append("Empty repository")
+                return CheckResult(passed=False, detail="Repository has no commits"), flags
+            
+            if commit_count <= 2:
+                latest_commit_sha = commits[0]["sha"]
+                detail_resp = await client.get(f"{commits_url}/{latest_commit_sha}")
+                if detail_resp.status_code == 200:
+                    stats = detail_resp.json().get("stats", {})
+                    additions = stats.get("additions", 0)
+                    if additions > 2000:
+                        flags.append(f"Sus: Repo has only {commit_count} commit(s) but {additions} lines of code. Possible AI generation or copy-paste.")
+            detail_msg = f"Commit analysis clean ({commit_count} + commits)"
+        else:
+            detail_msg = f"Could not fetch commit history"
+    except Exception as e:
+        detail_msg = f"Commit analysis failed: {e}"
+
+    return CheckResult(passed=True, detail=detail_msg), flags
+    
+
 #Endpoint
 @app.post("/api/v1/preflight", response_model=PreflightResponse)
 async def run_preflight(payload: PreflightRequest):
@@ -232,19 +293,21 @@ async def run_preflight(payload: PreflightRequest):
             detail="Could not parse GitHub owner/repo from the provided github_url",
         )
     owner, repo = parsed
-    logger.info("Preflight started | repo=%s/%s", owner, repo)
+    logger.info("Preflight started | repo=%s/%s | user=%s", owner, repo, payload.target_program)
 
     #Run all checks concurrently
-    birth_result, playable_result, (readme_result, readme_flags) = await asyncio.gather(
+    birth_result, playable_result, (readme_result, readme_flags), (fraud_result, fraud_flags) = await asyncio.gather(
         check_birth_year(payload.birth_year),
         check_playable_url(client, str(payload.playable_url)),
         check_readme(client, owner, repo),
+        run_anti_fraud_checks(client, owner, repo, str(payload.github_url), payload.target_program)
     )
 
     flags.extend(readme_flags)
+    flags.extend(fraud_flags)
 
     #Overall pass/fail
-    overall = birth_result.passed and playable_result.passed and readme_result.passed
+    overall = birth_result.passed and playable_result.passed and readme_result.passed and fraud_result.passed
 
     logger.info(
         "Preflight done | repo=%s/%s | passed=%s | flags=%d",
@@ -256,6 +319,7 @@ async def run_preflight(payload: PreflightRequest):
         birth_year_check=birth_result,
         playable_url_check=playable_result,
         readme_check=readme_result,
+        anti_fraud_check=fraud_result,
         flags=flags,
     )
 
