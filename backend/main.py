@@ -154,3 +154,112 @@ async def check_playable_url(client: httpx.AsyncClient, url: str) -> CheckResult
     except httpx.RequestError as e:
         return CheckResult(passed=False, detail=f"Network Error: {e}")
     
+async def check_readme(
+    client: httpx.AsyncClient, owner: str, repo: str
+) -> tuple[CheckResult, list[str]]:
+    """
+    Uses the Github Contents API to:
+    1. Confirm the README.md exists
+    2. Verify it meets the minimum word count
+    3. Check for atleast one http/https link (demo link)
+    Returns (CheckResult, additional flags)
+    """
+    flags: list[str] = []
+
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/contents/README.md"
+    try:
+        resp = await client.get(api_url)
+    except httpx.RequestError as e:
+        return CheckResult(passed=False, detail=f"Github API request failed: {e}"), flags
+
+    if resp.status_code == 404:
+        return CheckResult(passed=False, detail="README.md not found in the repository root"), flags
+    if resp.status_code == 403:
+        return CheckResult(
+            passed=False,
+            detail="Github API rate limit exceeded. Add a GITHUB_TOKEN to .env to increase limits",
+        ), flags
+    if resp.status_code != 200:
+        return CheckResult(
+            passed=False,
+            detail=f"Unexpected Github API response: HTTP {resp.status_code}",
+        ), flags
+
+    data = resp.json()
+
+    #Decode content (github returns base64)
+    import base64
+    try:
+        raw_content = base64.b64decode(data.get("content", "")).decode("utf-8", errors="replace")
+    except Exception:
+        return CheckResult(passed=False, detail="Could not decode README content"), flags
+
+    word_count = len(raw_content.split())
+    has_link = bool(re.search(r"https?://", raw_content))
+
+    if word_count < README_MIN_WORDS:
+        flags.append(f"README is very short ({word_count} words, minimum {README_MIN_WORDS}).")
+        return CheckResult(
+            passed=False,
+            detail=f"README exists but is too short ({word_count}/{README_MIN_WORDS} words)."
+        ), flags
+    
+    if not has_link:
+        flags.append("README contains no hyperlinks, demo link may be missing")
+
+    return CheckResult(
+        passed=True,
+        detail=f"README.md found ({word_count} words). {'No demo link detected' if not has_link else ''}",
+    ), flags
+
+#Endpoint
+@app.post("/api/v1/preflight", response_model=PreflightResponse)
+async def run_preflight(payload: PreflightRequest):
+    """
+    Runs all automated pre-flight checks on a YSWS submission
+    All checks are run concurrently for speed
+    """
+    import asyncio
+
+    client: httpx.AsyncClient = app.state.http_client
+    flags: list[str] = []
+
+    #Parse GitHub URL early- fail fast if malformed
+    parsed = parse_github_repo(str(payload.github_url))
+    if not parsed: 
+        raise HTTPException(
+            status_code=422,
+            detail="Could not parse GitHub owner/repo from the provided github_url",
+        )
+    owner, repo = parsed
+    logger.info("Preflight started | repo=%s/%s", owner, repo)
+
+    #Run all checks concurrently
+    birth_result, playable_result, (readme_result, readme_flags) = await asyncio.gather(
+        check_birth_year(payload.birth_year),
+        check_playable_url(client, str(payload.playable_url)),
+        check_readme(client, owner, repo),
+    )
+
+    flags.extend(readme_flags)
+
+    #Overall pass/fail
+    overall = birth_result.passed and playable_result.passed and readme_result.passed
+
+    logger.info(
+        "Preflight done | repo=%s/%s | passed=%s | flags=%d",
+        owner, repo, overall, len(flags),
+    )
+
+    return PreflightResponse(
+        overall_passed=overall,
+        birth_year_check=birth_result,
+        playable_url_check=playable_result,
+        readme_check=readme_result,
+        flags=flags,
+    )
+
+#Health Check
+@app.get("/health")
+async def health():
+    return {"status": "ok", "version": app.version}
