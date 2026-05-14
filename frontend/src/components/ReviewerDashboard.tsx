@@ -63,6 +63,7 @@ export default function ReviewerDashboard() {
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState<number | null>(null);
     const [urlInput, setUrlInput] = useState(PROJECTS[0].playable_url);
+    const[iframeMode, setIframeMode] = useState<"demo" | "github">("demo");
 
     const runPreflight = async () => {
         setLoading(true);
@@ -84,7 +85,7 @@ export default function ReviewerDashboard() {
 
     const handleProjectSwitch = (p: Project) => {
         setActiveProject(p);
-        setUrlInput(p.playable_url);
+        setIframeMode("demo");
         setPreflight(null);
     };
 
@@ -94,6 +95,10 @@ export default function ReviewerDashboard() {
         setTimeout(() => setCopied(null), 1800);
     };
 
+    const activeUrl = iframeMode === "demo"
+        ? activeProject.playable_url
+        : activeProject.github_url;
+
     return (
         <div
             className="h-screen w-full flex overflow-hidden"
@@ -101,15 +106,17 @@ export default function ReviewerDashboard() {
                 {/* Left Panel */}
                 <div className="w-[220px] shrink-0 flex flex-col" style={{ background: "#f9d8de", borderRight: "2px solid #ec3750" }}>
                     {/* Logo */}
-                    <div className="p-3 pb-2 flex items-center gap-2 border-b border-[#ec3750]/30">
-                        <img 
+                    <div className="relative p-3 pb-2 flex items-center justify-end h-20 border-b border-[#ec3750]/30">
+                        <img
                             src="https://assets.hackclub.com/flag-orpheus-top.svg"
                             alt="Hack Club"
-                            className="h-10 w-auto"
+                            className="absolute -top-2 -left-4 w-32 h-auto drop-shadow-md z-10"
                         />
-                        <div>
-                            <p className="font-black text-sm text-[#ec3750] leading-none">Velocity</p>
-                            <p className="text-[10px] text-[#8492a6] font-bold uppercase tracking-wider leading-none mt-0.5">by Swastik Bajpai</p>
+                        <div className="text-right z-0">
+                            <p className="font-black text-xl text-[#ec3750] leading-none">Velocity</p>
+                            <p className="text-xs text-[#8492a6] font-bold uppercase tracking-widest leading-none mt-1">
+                            by Hack Club
+                            </p>
                         </div>
                     </div>
 
@@ -166,15 +173,39 @@ export default function ReviewerDashboard() {
 
                 {/* Center Panel */}
                 <div className="flex-1 flex flex-col p-3 gap-3 min-w-0">
+                    <div className="flex items-center gap-2">
+                        <div className="flex bg-[#17171d] rounded-xl p-1 gap-1 shrink-0 border-2 border-[#17171d]">
+                            <button
+                                onClick={() => setIframeMode("demo")}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                    iframeMode === "demo"
+                                    ? "bg-[#ec3750] text-white shadow-[0_2px_0_#000] active:shadow-none active:translate-y-px"
+                                    : "text-[#8492a6] hover:text-white"
+                                }`}>
+                                    <ExternalLink className="w-3 h-3" />
+                                    Live
+                                </button>
+                                <button
+                                    onClick={() => setIframeMode("github")}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                        iframeMode === "github"
+                                            ? "bg-[#ec3750] text-white shadow-[0_2px_0_#000] active:shadow-none active:translate-y-px"
+                                            : "text-[#8492a6] hover:text-white"
+                                    }`}>
+                                        <Code className="w-3 h-3" />
+                                        Github
+                                    </button>
+                        </div>
+                    </div>
                     {/* URL Bar */}
                     <div className="flex items-center gap-2 bg-[#f9d8de] rounded-xl px-4 py-2 border-2 border-[#17171d]/10">
                         <ExternalLink className="w-4 h-4 text-[#8492a6] shrink-0" />
                         <input
                             className="flex-1 text-sm font-mono text-[#17171d] bg-transparent outline-none truncate"
-                            value={urlInput}
+                            value={activeUrl}
                             onChange={(e) => setUrlInput(e.target.value)}
                         />
-                        <a href={urlInput} target="_blank" rel="noreferrer"
+                        <a href={activeUrl} target="_blank" rel="noreferrer"
                             className="text-xs text-[#ec3750] font-bold hover:underline shrink-0">
                             Open         
                         </a> 
@@ -183,7 +214,8 @@ export default function ReviewerDashboard() {
                     {/* Iframe */}
                     <div className="flex-1 bg-[#252429] rounded-2xl overflow-hidden border-2 border-[#17171d]/30 relative">
                         <iframe
-                            src={activeProject.playable_url}
+                            key={activeUrl}
+                            src={activeUrl}
                             className="w-full h-full border-none"
                             title="Live Preview"
                             sandbox="allow-scripts allow-same-origin allow-forms"/>
@@ -276,22 +308,24 @@ export default function ReviewerDashboard() {
                     <div className="flex-1" />
 
                     {/* Accept/Reject */}
-                    <div className="p-3 space-y-2 border-t border-[#ec3750]/30">
+                    <div className="p-3 space-y-3 border-t border-[#ec3750]/30">
                             {!preflight && (
                                 <button
                                     onClick={runPreflight}
                                     disabled={loading}
-                                    className="w-full bg-[#338eda] hover:bg-[#2670b8] text-white font-black text-xs py-2.5 rounded-xl transititon-all active:scale-95 disabled:opacity-50">
+                                    className="w-full bg-[#338eda] text-white font-black text-xs py-3 rounded-xl border-2 border-[#080861] shadow-[0_4px_0_#080861] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition:all disabled:opacity-50 disabled:active:translate-y-0 disabled:active:shadow-[0_4px_0_#17171d]">
                                         {loading ? "Scanning..." : "Run Preflight Scan"}
                                 </button>
                             )}
-                            <button className="w-full bg-[#33d6a6] hover:bg-[#2bb88e] text-[#17171d] font-black text-sm py-3 rounded-xl transition-all active:scale-95 shadow">
-                                Accept
+
+                            <button className="w-full bg-[#33d6a6] text-[#17171d] font-black text-sm py-3.5 rounded-xl border-2 border-[#1b7b5d] shadow-[0_4px_0_#1b7b5d] hover:bg-[#2bb88e] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all flex justify-center items-center">
+                                Approve
                             </button>
-                            <button className="w-full bg-[#ec3750] hover:bg-[#d024b2] text-white font-black text-sm py-3 rounded-xl transition-all active:scale-95 shadow">
+
+                            <button className="w-full bg-[#ec3750] text-white font-black text-sm py-3.5 rounded-xl border-2 border-[#7e0630] shadow-[0_4px_0_#7e0630] hover:bg-[#d02b42] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all flex justify-center items-center">
                                 Reject
                             </button>
-                    </div>
+                    </div> 
                 </div>
             </div>
     );
