@@ -63,7 +63,9 @@ export default function ReviewerDashboard() {
     const [loading, setLoading] = useState(false);
     const [copied, setCopied] = useState<number | null>(null);
     const [urlInput, setUrlInput] = useState(PROJECTS[0].playable_url);
-    const[iframeMode, setIframeMode] = useState<"demo" | "github">("demo");
+    const [iframeMode, setIframeMode] = useState<"demo" | "github" | "stats">("demo");
+    const [repoStats, setRepoStats] = useState<any>(null);
+    const [statsLoading, setStatsLoading] = useState(false);
 
     const runPreflight = async () => {
         setLoading(true);
@@ -83,6 +85,50 @@ export default function ReviewerDashboard() {
         } catch { /*Server might be off*/}
     };
 
+    const fetchRepoStats = async (githubUrl: string) => {
+        setStatsLoading(true);
+        setRepoStats(null);
+        try {
+            const [owner, repo] = githubUrl.replace("https://github.com/", "").split("/");
+
+            const [repoRes, commitsRes, contributorsRes] = await Promise.all([
+                fetch(`https://api.github.com/repos/${owner}/${repo}`),
+                fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=100`),
+                fetch(`https://api.github.com/repos/${owner}/${repo}/contributors?per_page=10`),
+            ]);
+
+            const repoData = await repoRes.json();
+            const commitsData = await commitsRes.json();
+            const contributorsData = await contributorsRes.json();
+
+            //Check for AI Slop
+            const commitDetails = await Promise.all(
+                commitsData.slice(0, 5).map((c: any) =>
+                    fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${c.sha}`).then((r) => r.json())
+                )
+            );
+
+            const maxAdditions = Math.max(...commitDetails.map((c: any) => c.stats.additions ?? 0));
+
+            setRepoStats({
+                name: repoData.name,
+                description: repoData.description,
+                stars: repoData.stargazers_count,
+                forks: repoData.forks_count,
+                language: repoData.language,
+                openIssues: repoData.open_issues_count,
+                pushedAt: repoData.pushed_at,
+                commitCount: commitsData.length,
+                commits: commitsData.slice(0, 10),
+                contributors: Array.isArray(contributorsData) ? contributorsData : [], maxAdditions,
+                aiSlopFlag: commitsData.length <= 3 && maxAdditions > 500,
+            });
+        } catch (e) {
+            console.error("Github API error", e);
+        }
+        setStatsLoading(false);
+    }
+
     const handleProjectSwitch = (p: Project) => {
         setActiveProject(p);
         setIframeMode("demo");
@@ -97,7 +143,7 @@ export default function ReviewerDashboard() {
 
     const activeUrl = iframeMode === "demo"
         ? activeProject.playable_url
-        : activeProject.github_url;
+        : activeProject.github_url.replace("https://github.com/", "https://github1s.com/");
 
     return (
         <div
