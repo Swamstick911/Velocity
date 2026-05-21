@@ -241,26 +241,7 @@ export default function ReviewerDashboard() {
                                         {icon}{label}
                                 </button>
                             ))}
-                            <button
-                                onClick={() => setIframeMode("demo")}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                                    iframeMode === "demo"
-                                    ? "bg-[#ec3750] text-white shadow-[0_2px_0_#000] active:shadow-none active:translate-y-px"
-                                    : "text-[#8492a6] hover:text-white"
-                                }`}>
-                                    <ExternalLink className="w-3 h-3" />
-                                    Live
-                                </button>
-                                <button
-                                    onClick={() => setIframeMode("github")}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
-                                        iframeMode === "github"
-                                            ? "bg-[#ec3750] text-white shadow-[0_2px_0_#000] active:shadow-none active:translate-y-px"
-                                            : "text-[#8492a6] hover:text-white"
-                                    }`}>
-                                        <Code className="w-3 h-3" />
-                                        Github
-                                    </button>
+                            
                         </div>
                     </div>
                     {/* URL Bar */}
@@ -338,8 +319,44 @@ export default function ReviewerDashboard() {
                                         {/* Recent Commits */}
                                         <div className="bg-[#17171d] rounded-xl p-4 border border-white/5">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6] mb-3">Recent Commits</p>
-                                            
+                                            <div className="space-y-2">
+                                                {repoStats.commits.map((c: any, i: number) => (
+                                                    <div key={i} className="flex items-start gap-2 border-b border-white/5 pb-2 last:border-0 last:pb-0">
+                                                        <img
+                                                            src={c.author?.avatar_url ?? "https://github.com/ghost.png"}
+                                                            alt=""
+                                                            className="w-5 h-5 rounded-full shrink-0 mt-0.5" />
+                                                        <div className="min-w-0">
+                                                            <p className="text-xs text-white font-medium truncate leading-snug">{c.commit.message.split("\n")[0]}</p>
+                                                            <p className="text-[10px] text-[#8492a6]">
+                                                                {c.commit.author.name} - {new Date(c.commit.author.date).toLocaleDateString()}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
                                         </div>
+
+                                        {/* Contributors */}
+                                        {repoStats.contributors.length > 0 && (
+                                            <div className="bg-[#17171d] rounded-xl p-4 border border-white/5">
+                                                <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6] mb-3">Contributors</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {repoStats.contributors.map((c: any) => (
+                                                        <div key={c.login} className="flex items-center gap-1.5 bg-[#252429] rounded-full px-2 py-1">
+                                                            <img src={c.avatar_url} alt={c.login} className="w-4 h-4 rounded-full" />
+                                                            <span className="text-[10px] font-bold text-white">{c.login}</span>
+                                                            <span className="text-[10px] text-[#8492a6]">{c.contributions}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="flex items-center justify-center h-full text-[#8492a6] text-sm">
+                                        Failed to load stats
+                                    </div>
                                 )}
                             </div>
                         )}
