@@ -132,6 +132,7 @@ export default function ReviewerDashboard() {
     const handleProjectSwitch = (p: Project) => {
         setActiveProject(p);
         setIframeMode("demo");
+        setRepoStats(null);
         setPreflight(null);
     };
 
@@ -221,6 +222,25 @@ export default function ReviewerDashboard() {
                 <div className="flex-1 flex flex-col p-3 gap-3 min-w-0">
                     <div className="flex items-center gap-2">
                         <div className="flex bg-[#17171d] rounded-xl p-1 gap-1 shrink-0 border-2 border-[#17171d]">
+                            {[
+                                { mode: "demo", label: "Live", icon: <ExternalLink className="w-3 h-3" />},
+                                { mode: "github", label: "Code", icon: <Code className="w-3 h-3" />},
+                                { mode: "stats", label: "Stats", icon: <Search className="w-3 h-3" />},
+                            ].map(({ mode, label, icon }) => (
+                                <button
+                                    key={mode}
+                                    onClick={() => {
+                                        setIframeMode(mode as any);
+                                        if (mode === "stats" && !repoStats) fetchRepoStats(activeProject.github_url);
+                                    }}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                        iframeMode === mode
+                                            ? "bg-[#ec3750] text-white shadow-[0_2px_0_#000]"
+                                            : "text-[#8492a6] hover:text-white"
+                                    }`}>
+                                        {icon}{label}
+                                </button>
+                            ))}
                             <button
                                 onClick={() => setIframeMode("demo")}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black transition-all ${
@@ -259,15 +279,70 @@ export default function ReviewerDashboard() {
 
                     {/* Iframe */}
                     <div className="flex-1 bg-[#252429] rounded-2xl overflow-hidden border-2 border-[#17171d]/30 relative">
-                        <iframe
-                            key={activeUrl}
-                            src={activeUrl}
-                            className="w-full h-full border-none"
-                            title="Live Preview"
-                            sandbox="allow-scripts allow-same-origin allow-forms"/>
-                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-[#17171d]/80 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full font-bold pointer-events-none">
-                            Demo Screen
-                        </div>
+                        {iframeMode !== "stats" ? (
+                            <iframe
+                                key={activeUrl}
+                                src={activeUrl}
+                                className="w-full h-full border-none"
+                                title="Preview"
+                                sandbox="allow-scripts allow-same-origin allow-forms"/>
+                        ) : (
+                            <div className="w-full h-full overflow-y-auto p-5 text-white">
+                                {statsLoading ? (
+                                    <div className="flex flex-col items-center justify-center h-full gap-3">
+                                        <div className="w-8 h-8 border-4 border-[#ec3750] border-t-transparent rounded-full animate-spin" />
+                                        <p className="text-[#8492a6] text-sm font-bold">Fetching repo stats...</p>
+                                    </div>
+                                ) : repoStats ? (
+                                    <div className="space-y-5">
+                                        {/* AI Slop Warning */}
+                                        {repoStats.aiSlopFlag && (
+                                            <div className="bg-[#ff8c37]/20 border-2 border-[#ff8c37] rounded-xl p-3 flex items-start gap-2">
+                                                <AlertTriangle className="w-4 h-4 text-[#ff8c37] mt-0.5 shrink-0" />
+                                                <div>
+                                                    <p className="text-xs font-black text-[#ff8c37] uppercase tracking-wide">AI Slop Detected</p>
+                                                    <p className="text-xs text-[#8492a6] mt-0.5">
+                                                        Only {repoStats.commitCount} commit{repoStats.commitCount !== 1 ? "s" : ""} with {repoStats.maxAdditions.toLocaleString()} lines added in one push.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Repo Info */}
+                                        <div className="bg-[#17171d] rounded-xl p-4 space-y-2 border border-white/5">
+                                            <p className="font-black text-white text-base">{repoStats.name}</p>
+                                            {repoStats.description && (
+                                                <p className="text-xs text-[#8492a6] leading-relaxed">{repoStats.descriptions}</p>
+                                            )}
+                                            <div className="flex flex-wrap gap-2 pt-1">
+                                                {[
+                                                    { label: "Stars", value: repoStats.stars },
+                                                    { label: "Forks", value: repoStats.forks},
+                                                    { label: "Issues", value: repoStats.openIssues },
+                                                    { label: "Commits", value: repoStats.commitCount },
+                                                ].map(({ label, value }) => (
+                                                    <div key={label} className="bg-[#252429] rounded-lg px-3 py-1.5 text-center">
+                                                        <p className="text-[10px] text-[#8492a6] font-bold">{label}</p>
+                                                        <p className="text-sm font-black text-white">{value}</p>
+                                                    </div>
+                                                ))}
+                                                {repoStats.language && (
+                                                    <div className="bg-[#252429] rounded-lg px-3 py-1.5 text-center">
+                                                        <p className="text-[10px] text-[#8492a6] font-bold">Language</p>
+                                                        <p className="text-sm font-black text-white">{repoStats.language}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Recent Commits */}
+                                        <div className="bg-[#17171d] rounded-xl p-4 border border-white/5">
+                                            <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6] mb-3">Recent Commits</p>
+                                            
+                                        </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
