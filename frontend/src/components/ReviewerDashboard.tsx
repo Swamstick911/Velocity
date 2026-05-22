@@ -1,34 +1,28 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import { CheckCircle, XCircle, AlertTriangle, ExternalLink, Code, Clock, LogOut, Copy, Plus, Search } from "lucide-react";
 
-//Types
+// Types
 interface CheckResult { passed: boolean; detail: string; }
 interface PreflightResponse {
     overall_passed: boolean;
     birth_year_check: CheckResult;
     readme_check: CheckResult;
+    playable_url_check: CheckResult;
     anti_fraud_check: CheckResult;
     flags: string[];
 }
-interface Project {
-    id: number;
-    name: string;
-    target: string;
-    status: "pending" | "clean" | "flagged";
+
+interface Submission {
+    id: string;
     github_url: string;
     playable_url: string;
-    birth_year: number;
+    target_program: string;
+    status: "pending" | "clean" | "flagged" | string;
+    birth_year: number | null;
 }
-
-//Mock Data
-const PROJECTS: Project[] = [
-    {id: 1, name: "hackclub/sprig", target: "Blot", status: "flagged", github_url: "https://github.com/hackclub/sprig", playable_url: "https://sprig.hackclub.com", birth_year: 2008 },
-    {id: 2, name: "Swamstick911/grindline", target: "High Seas", status: "pending", github_url: "https://github.com/Swamstick911/grindline", playable_url: "https://grindline-xi.vercel.app", birth_year: 2010 },
-    {id: 3, name: "Swamstick911/Forxa", target: "Stasis", status: "clean", github_url: "https://github.com/Swamstick911/Forxa", playable_url: "https://github.com/Swamstick911/Forxa", birth_year: 2008 },
-    {id: 4, name: "dev42/cool-project", target: "", status: "flagged", github_url: "https://github.com/hackclub/sprig", playable_url: "https://sprig.hackclub.com", birth_year: 2008 },
-]
 
 const COPYPASTAS = [
     { label: "Short README", text: "We loved your project, but your README was a bit too short, try to add more details about the project and then resubmit!"},
@@ -37,35 +31,88 @@ const COPYPASTAS = [
     { label: "Double Dip", text: "Seems like this project is already submitted to another YSWS. Each project can only be submitted to one YSWS program"},
 ];
 
-//Sub-components
-const StatusDot = ({ status }: { status: Project["status"] }) => {
-    const colors = { pending: "bg-[#8492a6]", clean: "bg-[#33d6a6]", flagged: "bg-[#ff8c37" };
-    return <span className={`w-2 h-2 rounded-full inline-block ${colors[status]}`} />;
+// Sub-components
+const StatusDot = ({ status }: { status: Submission["status"] }) => {
+    // Default to pending color if status doesn't match
+    const color = status === "clean" ? "bg-[#33d6a6]" : status === "flagged" ? "bg-[#ff8c37]" : "bg-[#8492a6]";
+    return <span className={`w-2 h-2 rounded-full inline-block ${color}`} />;
 };
 
 const CheckRow = ({ result, label }: {result: CheckResult, label: string }) => (
     <div className="flex items-start gap-2 py-1.5 border-b border-[#e0e6ed] last:border-0">
         {result.passed
           ? <CheckCircle className="w-4 h-4 text-[#33d6a6] mt-0.5 shrink-0" />
-          : <XCircle    className="w-4 h-4 text-[#ec3750] mt-0.5 shrink-0" />}
+          : <XCircle className="w-4 h-4 text-[#ec3750] mt-0.5 shrink-0" />}
         <div>
             <p className="text-xs font-bold text-[#17171d] uppercase tracking-wide">{label}</p>
             <p className="text-xs text-[#8492a6] leading-snug">{result.detail}</p>
         </div>
     </div>
-
 );
 
-//Main dashboard
+// Main dashboard
 export default function ReviewerDashboard() {
-    const [activeProject, setActiveProject] = useState<Project>(PROJECTS[0]);
-    const [preflight, setPreflight] = useState<PreflightResponse | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [copied, setCopied] = useState<number | null>(null);
-    const [urlInput, setUrlInput] = useState(PROJECTS[0].playable_url);
-    const [iframeMode, setIframeMode] = useState<"demo" | "github" | "stats">("demo");
+    const [queue, setQueue] = useState<Submission[]>([]);
+    const [activeProject, setActiveProject] = useState<Submission | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [showStats, setShowStats] = useState(false);
     const [repoStats, setRepoStats] = useState<any>(null);
+    
+    // Added missing state variables
+    const [iframeMode, setIframeMode] = useState<"demo" | "github" | "stats">("demo");
+    const [preflight, setPreflight] = useState<PreflightResponse | null>(null);
     const [statsLoading, setStatsLoading] = useState(false);
+    const [copied, setCopied] = useState<number | null>(null);
+    const [urlInput, setUrlInput] = useState("");
+
+    useEffect(() => {
+        async function fetchQueue() {
+            try {
+                const res = await fetch("/api/airtable");
+                if (!res.ok) throw new Error("Failed to fetch queue");
+
+                const data = await res.json();
+                setQueue(data);
+
+                if (data.length > 0) {
+                    setActiveProject(data[0]);
+                }
+            } catch (err: any) {
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchQueue();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center bg-gray-50 text-gray-500">
+                <p>Loading YSWS queue...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center bg-gray-50 text-red-500">
+                <p>Error: {error}</p>
+                <p className="mt-2 text-sm text-gray-500">Check your .env.local file</p>
+            </div>
+        );
+    }
+
+    // Return an empty view if queue is empty and no active project
+    if (!activeProject) {
+        return (
+            <div className="flex h-screen flex-col items-center justify-center bg-gray-50 text-gray-500">
+                <p>Queue is empty! 🎉</p>
+            </div>
+        );
+    }
 
     const runPreflight = async () => {
         setLoading(true);
@@ -78,11 +125,12 @@ export default function ReviewerDashboard() {
                     github_url: activeProject.github_url,
                     playable_url: activeProject.playable_url,
                     birth_year: activeProject.birth_year,
-                    target_program: activeProject.target,
+                    target_program: activeProject.target_program,
                 }),
             });
             setPreflight(await res.json());
-        } catch { /*Server might be off*/}
+        } catch { /* Server might be off */ }
+        setLoading(false);
     };
 
     const fetchRepoStats = async (githubUrl: string) => {
@@ -101,14 +149,14 @@ export default function ReviewerDashboard() {
             const commitsData = await commitsRes.json();
             const contributorsData = await contributorsRes.json();
 
-            //Check for AI Slop
+            // Check for AI Slop
             const commitDetails = await Promise.all(
                 commitsData.slice(0, 5).map((c: any) =>
                     fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${c.sha}`).then((r) => r.json())
                 )
             );
 
-            const maxAdditions = Math.max(...commitDetails.map((c: any) => c.stats.additions ?? 0));
+            const maxAdditions = Math.max(...commitDetails.map((c: any) => c.stats?.additions ?? 0));
 
             setRepoStats({
                 name: repoData.name,
@@ -120,7 +168,8 @@ export default function ReviewerDashboard() {
                 pushedAt: repoData.pushed_at,
                 commitCount: commitsData.length,
                 commits: commitsData.slice(0, 10),
-                contributors: Array.isArray(contributorsData) ? contributorsData : [], maxAdditions,
+                contributors: Array.isArray(contributorsData) ? contributorsData : [],
+                maxAdditions,
                 aiSlopFlag: commitsData.length <= 3 && maxAdditions > 500,
             });
         } catch (e) {
@@ -129,7 +178,36 @@ export default function ReviewerDashboard() {
         setStatsLoading(false);
     }
 
-    const handleProjectSwitch = (p: Project) => {
+    const handleStatusUpdate = async (newStatus: string) => {
+        if (!activeProject) return;
+
+        try {
+            //Update Airtable via our new API route
+            const res = await fetch("/api/airtable", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: activeProject.id, status: newStatus }),
+            });
+
+            if (!res.ok) throw new Error("Failed to update status");
+
+            //Remove the project from the local queue so we can move to the next one
+            const updatedQueue = queue.filter(p => p.id !== activeProject.id);
+            setQueue(updatedQueue);
+
+            //Auto select the next project
+            if (updatedQueue.length > 0) {
+                handleProjectSwitch(updatedQueue[0]);
+            } else {
+                setActiveProject(null);
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Failed to update project status. Please try again.")
+        }
+    };
+
+    const handleProjectSwitch = (p: Submission) => {
         setActiveProject(p);
         setIframeMode("demo");
         setRepoStats(null);
@@ -155,7 +233,7 @@ export default function ReviewerDashboard() {
                     {/* Logo */}
                     <div className="relative p-3 pb-2 flex items-center justify-end h-20 border-b border-[#ec3750]/30">
                         <img
-                            src="https://assets.hackclub.com/flag-orpheus-top.svg"
+                            src="https://assets.hackclub.com/flag-orpheus-top.png"
                             alt="Hack Club"
                             className="absolute -top-2 -left-4 w-32 h-auto drop-shadow-md z-10"
                         />
@@ -185,36 +263,39 @@ export default function ReviewerDashboard() {
                     </div>
 
                     {/* Queue Label */}
-                    <p className="px-4 text-[10px] font-black text-[#8492a6] uppercase tracking-widest mb-1">Queue ({PROJECTS.length})</p>
+                    <p className="px-4 text-[10px] font-black text-[#8492a6] uppercase tracking-widest mb-1">Queue ({queue.length})</p>
 
                     {/* Project List */}
                     <div className="flex-1 overflow-y-auto px-3 space-y-1.5 pb-3">
-                        {PROJECTS.map((p) => (
-                            <button
-                                key={p.id}
-                                onClick={() => handleProjectSwitch(p)}
-                                className={`w-full text-left px-3 py-2 rounded-xl border transition-all ${
-                                    activeProject.id === p.id
-                                    ? "bg-white border-[#17171d] shadow-sm"
-                                    : "bg-transparent border-transparent hover:bg-white/60"
-                                }`}>
-                                    <div className="flex items-center justify-between mb-0.5">
-                                        <p className="font-mono text-xs font-bold text-[#17171d] truncate max-w-[120px]">{p.name}</p>
-                                        <StatusDot status={p.status} />
-                                    </div>
-                                    <span className="text-[9px] bg-[#e0e6ed] text-[#17171d] px-1.5 py-0.5 rounded font-black uppercase tracking-wide">
-                                        {p.target}
-                                    </span>
-                            </button>
-                        ))}
+                        {queue.map((p) => {
+                            const repoName = p.github_url.split("/").pop() || "Unknown";
+                            return (
+                                <button
+                                    key={p.id}
+                                    onClick={() => handleProjectSwitch(p)}
+                                    className={`w-full text-left px-3 py-2 rounded-xl border transition-all ${
+                                        activeProject?.id === p.id
+                                        ? "bg-white border-[#17171d] shadow-sm"
+                                        : "bg-transparent border-transparent hover:bg-white/60"
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-0.5">
+                                            <p className="font-mono text-xs font-bold text-[#17171d] truncate max-w-[120px]">{repoName}</p>
+                                            <StatusDot status={p.status} />
+                                        </div>
+                                        <span className="text-[9px] bg-[#e0e6ed] text-[#17171d] px-1.5 py-0.5 rounded font-black uppercase tracking-wide">
+                                            {p.target_program}
+                                        </span>
+                                </button>
+                            );
+                        })}
                     </div>
 
                     {/* Touch Grass */}
                     <div className="p-3 border-t border-[#ec3750]/30">
-                        <button className="w-full bg-[#33d6a6] hover:bg-[#2bb88e] text-[#17171d] font-black text-xs py-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5">
+                        <Link href="/" className="w-full bg-[#33d6a6] hover:bg-[#2bb88e] text-[#17171d] font-black text-xs py-2.5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-1.5">
                             <LogOut className="w-3.5 h-3.5" />
                             Touch Grass
-                        </button>
+                        </Link>
                     </div>
                 </div>
 
@@ -293,7 +374,7 @@ export default function ReviewerDashboard() {
                                         <div className="bg-[#17171d] rounded-xl p-4 space-y-2 border border-white/5">
                                             <p className="font-black text-white text-base">{repoStats.name}</p>
                                             {repoStats.description && (
-                                                <p className="text-xs text-[#8492a6] leading-relaxed">{repoStats.descriptions}</p>
+                                                <p className="text-xs text-[#8492a6] leading-relaxed">{repoStats.description}</p>
                                             )}
                                             <div className="flex flex-wrap gap-2 pt-1">
                                                 {[
@@ -364,20 +445,20 @@ export default function ReviewerDashboard() {
                 </div>
 
                 {/* Right Panel */}
-                <div className="w-[260px] shrink-0 flex flex-col bg-[#f9d8de] border-1-2 border-[#ec3750]">
+                <div className="w-[260px] shrink-0 flex flex-col bg-[#f9d8de] border-l-2 border-[#ec3750]">
                     {/* User Dossier */}
                     <div className="m-3 mb-2 bg-[#17171d] text-white rounded-2xl p-3">
                         <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6] mb-2">User Dossier</p>
                         <div className="flex items-center gap-2 mb-1">
                             <Code className="w-4 h-4 text-[#333eda]" />
-                            <p className="text-sm font-bold truncate">{activeProject.name.split("/")[0]}</p>
+                            <p className="text-sm font-bold truncate">{activeProject.github_url.split("/").pop()}</p>
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="text-[9px] bg-[#252429] text-[#33d6a6] px-2 py-0.5 rounded-full font-bold uppercase">
-                                {activeProject.target}
+                                {activeProject.target_program}
                             </span>
                             <span className="text-[9px] bg-[#252429] text-[#8492a6] px-2 py-0.5 rounded-full font-bold uppercase">
-                                Age: {2026 - activeProject.birth_year}
+                                Age: {activeProject.birth_year ? 2026 - activeProject.birth_year : "Unknown"}
                             </span>
                         </div>
                     </div>
@@ -456,11 +537,15 @@ export default function ReviewerDashboard() {
                                 </button>
                             )}
 
-                            <button className="w-full bg-[#33d6a6] text-[#17171d] font-black text-sm py-3.5 rounded-xl border-2 border-[#1b7b5d] shadow-[0_4px_0_#1b7b5d] hover:bg-[#2bb88e] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all flex justify-center items-center">
+                            <button 
+                                onClick={() => handleStatusUpdate("Approved")} 
+                                className="w-full bg-[#33d6a6] text-[#17171d] font-black text-sm py-3.5 rounded-xl border-2 border-[#1b7b5d] shadow-[0_4px_0_#1b7b5d] hover:bg-[#2bb88e] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all flex justify-center items-center">
                                 Approve
                             </button>
 
-                            <button className="w-full bg-[#ec3750] text-white font-black text-sm py-3.5 rounded-xl border-2 border-[#7e0630] shadow-[0_4px_0_#7e0630] hover:bg-[#d02b42] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all flex justify-center items-center">
+                            <button
+                                onClick={() => handleStatusUpdate("Rejected")}
+                                className="w-full bg-[#ec3750] text-white font-black text-sm py-3.5 rounded-xl border-2 border-[#7e0630] shadow-[0_4px_0_#7e0630] hover:bg-[#d02b42] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all flex justify-center items-center">
                                 Reject
                             </button>
                     </div> 

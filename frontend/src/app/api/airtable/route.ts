@@ -42,3 +42,39 @@ export async function GET() {
         );
     }
 }
+
+export async function PATCH(request: Request) {
+    try {
+        const apiKey = process.env.AIRTABLE_API_KEY;
+        const baseId = process.env.AIRTABLE_BASE_ID;
+
+        if (!apiKey || !baseId) {
+            return NextResponse.json(
+                { error: 'Airtable API key or Base ID is not configured.' },
+                { status: 500 }
+            );
+        }
+
+        const body = await request.json();
+        const { id, status } = body;
+
+        const base = new Airtable({ apiKey }).base(baseId);
+
+        await base('Submissions').update([
+            {
+                id: id,
+                fields: {
+                    Status: status,
+                },
+            },
+        ]);
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("Airtable update error: ", error);
+        return NextResponse.json(
+            { error: 'Failed to update Airtable.' },
+            { status: 500 }
+        );
+    }
+}
