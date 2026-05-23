@@ -112,10 +112,10 @@ export default function ReviewerDashboard() {
   const [activeProject, setActiveProject] = useState<Submission | null>(null);
 
   const [pageLoading, setPageLoading] = useState(true);
+  const [queueError, setQueueError] = useState<string | null>(null);
   const [scanLoading, setScanLoading] = useState(false);
   const [statsLoading, setStatsLoading] = useState(false);
 
-  const [error, setError] = useState<string | null>(null);
   const [repoStats, setRepoStats] = useState<RepoStats | null>(null);
   const [preflight, setPreflight] = useState<PreflightResponse | null>(null);
 
@@ -141,13 +141,17 @@ export default function ReviewerDashboard() {
         if (!res.ok) throw new Error("Failed to fetch queue");
 
         const data = await res.json();
-        setQueue(data);
+        setQueue(Array.isArray(data) ? data : []);
 
-        if (data.length > 0) {
+        if (Array.isArray(data) && data.length > 0) {
           setActiveProject(data[0]);
+        } else {
+          setActiveProject(null);
         }
       } catch (err: any) {
-        setError(err.message || "Something went wrong");
+        setQueueError(err?.message || "Failed to fetch queue");
+        setQueue([]);
+        setActiveProject(null);
       } finally {
         setPageLoading(false);
       }
@@ -363,40 +367,14 @@ export default function ReviewerDashboard() {
     }
   };
 
-  if (pageLoading) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-gray-50 text-gray-500">
-        <p>Loading YSWS queue...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-gray-50 text-red-500">
-        <p>Error: {error}</p>
-        <p className="mt-2 text-sm text-gray-500">
-          Check your Airtable API route and config.
-        </p>
-      </div>
-    );
-  }
-
-  if (!activeProject) {
-    return (
-      <div className="flex h-screen flex-col items-center justify-center bg-gray-50 text-gray-500">
-        <p>Queue is empty! 🎉</p>
-      </div>
-    );
-  }
-
-  const activeUrl =
-    iframeMode === "demo"
+  const activeUrl = activeProject
+    ? iframeMode === "demo"
       ? activeProject.playable_url
       : activeProject.github_url.replace(
           "https://github.com/",
           "https://github1s.com/"
-        );
+        )
+    : "";
 
   return (
     <div
@@ -406,7 +384,7 @@ export default function ReviewerDashboard() {
         background: "#ec3750",
       }}
     >
-      {showApiGate && (
+      {showApiGate && !pageLoading && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8de] p-5 shadow-[0_10px_0_#17171d]">
             <div className="mb-4 flex items-center gap-3">
@@ -525,31 +503,52 @@ export default function ReviewerDashboard() {
           Queue ({filteredQueue.length})
         </p>
 
+        {queueError && (
+          <div className="mx-3 mb-2 rounded-xl border border-[#ff8c37] bg-[#fff3cd] px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-[#ff8c37]">
+              Queue Error
+            </p>
+            <p className="mt-1 text-xs font-medium text-[#17171d]">
+              {queueError}
+            </p>
+          </div>
+        )}
+
         <div className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
-          {filteredQueue.map((p) => {
-            const repoName = p.github_url.split("/").pop() || "Unknown";
-            return (
-              <button
-                key={p.id}
-                onClick={() => handleProjectSwitch(p)}
-                className={`w-full rounded-xl border px-3 py-2 text-left transition-all ${
-                  activeProject?.id === p.id
-                    ? "border-[#17171d] bg-white shadow-sm"
-                    : "border-transparent bg-transparent hover:bg-white/60"
-                }`}
-              >
-                <div className="mb-0.5 flex items-center justify-between">
-                  <p className="max-w-[120px] truncate font-mono text-xs font-bold text-[#17171d]">
-                    {repoName}
-                  </p>
-                  <StatusDot status={p.status} />
-                </div>
-                <span className="rounded bg-[#e0e6ed] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#17171d]">
-                  {p.target_program}
-                </span>
-              </button>
-            );
-          })}
+          {pageLoading ? (
+            <div className="rounded-xl bg-white/70 px-3 py-3 text-xs font-bold text-[#8492a6]">
+              Loading queue...
+            </div>
+          ) : filteredQueue.length > 0 ? (
+            filteredQueue.map((p) => {
+              const repoName = p.github_url.split("/").pop() || "Unknown";
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => handleProjectSwitch(p)}
+                  className={`w-full rounded-xl border px-3 py-2 text-left transition-all ${
+                    activeProject?.id === p.id
+                      ? "border-[#17171d] bg-white shadow-sm"
+                      : "border-transparent bg-transparent hover:bg-white/60"
+                  }`}
+                >
+                  <div className="mb-0.5 flex items-center justify-between">
+                    <p className="max-w-[120px] truncate font-mono text-xs font-bold text-[#17171d]">
+                      {repoName}
+                    </p>
+                    <StatusDot status={p.status} />
+                  </div>
+                  <span className="rounded bg-[#e0e6ed] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#17171d]">
+                    {p.target_program}
+                  </span>
+                </button>
+              );
+            })
+          ) : (
+            <div className="rounded-xl bg-white/70 px-3 py-3 text-xs font-bold text-[#8492a6]">
+              No submissions loaded yet.
+            </div>
+          )}
         </div>
 
         <div className="border-t border-[#ec3750]/30 p-3">
@@ -575,15 +574,16 @@ export default function ReviewerDashboard() {
                 key={mode}
                 onClick={() => {
                   setIframeMode(mode as "demo" | "github" | "stats");
-                  if (mode === "stats" && !repoStats) {
+                  if (mode === "stats" && activeProject && !repoStats) {
                     fetchRepoStats(activeProject.github_url);
                   }
                 }}
+                disabled={!activeProject}
                 className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-black transition-all ${
                   iframeMode === mode
                     ? "bg-[#ec3750] text-white shadow-[0_2px_0_#000]"
                     : "text-[#8492a6] hover:text-white"
-                }`}
+                } disabled:opacity-50`}
               >
                 {icon}
                 {label}
@@ -603,21 +603,38 @@ export default function ReviewerDashboard() {
           <ExternalLink className="h-4 w-4 shrink-0 text-[#8492a6]" />
           <input
             className="flex-1 truncate bg-transparent font-mono text-sm text-[#17171d] outline-none"
-            value={activeUrl}
+            value={activeUrl || "No active project selected"}
             readOnly
           />
-          <a
-            href={activeUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 text-xs font-bold text-[#ec3750] hover:underline"
-          >
-            Open
-          </a>
+          {activeUrl ? (
+            <a
+              href={activeUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 text-xs font-bold text-[#ec3750] hover:underline"
+            >
+              Open
+            </a>
+          ) : (
+            <span className="shrink-0 text-xs font-bold text-[#8492a6]">
+              —
+            </span>
+          )}
         </div>
 
         <div className="relative flex-1 overflow-hidden rounded-2xl border-2 border-[#17171d]/30 bg-[#252429]">
-          {iframeMode !== "stats" ? (
+          {!activeProject ? (
+            <div className="flex h-full items-center justify-center p-6 text-center">
+              <div>
+                <p className="text-lg font-black text-white">
+                  Dashboard ready
+                </p>
+                <p className="mt-2 text-sm text-[#8492a6]">
+                  Add your API config, then load submissions once Airtable is working.
+                </p>
+              </div>
+            </div>
+          ) : iframeMode !== "stats" ? (
             <iframe
               key={activeUrl}
               src={activeUrl}
@@ -769,15 +786,16 @@ export default function ReviewerDashboard() {
           <div className="mb-1 flex items-center gap-2">
             <Code className="h-4 w-4 text-[#333eda]" />
             <p className="truncate text-sm font-bold">
-              {activeProject.github_url.split("/").pop()}
+              {activeProject?.github_url.split("/").pop() || "No active project"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="rounded-full bg-[#252429] px-2 py-0.5 text-[9px] font-bold uppercase text-[#33d6a6]">
-              {activeProject.target_program}
+              {activeProject?.target_program || "No program"}
             </span>
             <span className="rounded-full bg-[#252429] px-2 py-0.5 text-[9px] font-bold uppercase text-[#8492a6]">
-              Age: {activeProject.birth_year ? 2026 - activeProject.birth_year : "Unknown"}
+              Age:{" "}
+              {activeProject?.birth_year ? 2026 - activeProject.birth_year : "Unknown"}
             </span>
           </div>
         </div>
@@ -888,7 +906,7 @@ export default function ReviewerDashboard() {
           {!preflight && (
             <button
               onClick={runPreflight}
-              disabled={scanLoading || !backendUrl}
+              disabled={scanLoading || !backendUrl || !activeProject}
               className="w-full rounded-xl border-2 border-[#080861] bg-[#338eda] py-3 text-xs font-black text-white shadow-[0_4px_0_#080861] transition-all disabled:opacity-50 active:translate-y-1 active:shadow-none"
             >
               {scanLoading ? "Scanning..." : "Run Preflight Scan"}
@@ -897,14 +915,16 @@ export default function ReviewerDashboard() {
 
           <button
             onClick={() => handleStatusUpdate("Approved")}
-            className="flex w-full items-center justify-center rounded-xl border-2 border-[#1b7b5d] bg-[#33d6a6] py-3.5 text-sm font-black text-[#17171d] shadow-[0_4px_0_#1b7b5d] transition-all active:translate-y-1 active:shadow-none hover:bg-[#2bb88e]"
+            disabled={!activeProject}
+            className="flex w-full items-center justify-center rounded-xl border-2 border-[#1b7b5d] bg-[#33d6a6] py-3.5 text-sm font-black text-[#17171d] shadow-[0_4px_0_#1b7b5d] transition-all disabled:opacity-50 active:translate-y-1 active:shadow-none hover:bg-[#2bb88e]"
           >
             Approve
           </button>
 
           <button
             onClick={() => handleStatusUpdate("Rejected")}
-            className="flex w-full items-center justify-center rounded-xl border-2 border-[#7e0630] bg-[#ec3750] py-3.5 text-sm font-black text-white shadow-[0_4px_0_#7e0630] transition-all active:translate-y-1 active:shadow-none hover:bg-[#d02b42]"
+            disabled={!activeProject}
+            className="flex w-full items-center justify-center rounded-xl border-2 border-[#7e0630] bg-[#ec3750] py-3.5 text-sm font-black text-white shadow-[0_4px_0_#7e0630] transition-all disabled:opacity-50 active:translate-y-1 active:shadow-none hover:bg-[#d02b42]"
           >
             Reject
           </button>
