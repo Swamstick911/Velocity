@@ -1,79 +1,112 @@
-import { NextResponse } from 'next/server';
-import Airtable from 'airtable';
+import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
-        const apiKey = process.env.AIRTABLE_API_KEY;
-        const baseId = process.env.AIRTABLE_BASE_ID;
+        const { searchParams } = new URL(request.url);
+        const token = searchParams.get("airtableToken");
+        const baseId = searchParams.get("airtableBaseId");
+        const table = searchParams.get("airtableTableName");
 
-        if(!apiKey || !baseId) {
+        if(!token || !baseId || !table) {
             return NextResponse.json(
-                { error: 'Airtable API key or Base ID is not configured.' },
-                { status: 500 }
+                { error: "Missing Airtable credentials in request" },
+                { status: 400 }
             );
         }
 
-        const base = new Airtable({ apiKey }).base(baseId);
+        const response = await fetch(
+            `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?view=Grid%20view`,
+            {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                cache: "no-store",
+            }
+        );
 
-        //we target the "Submissions" table and only grab pending ones
-        const records = await base('Submissions')
-            .select({
-                filterByFormula: "{Status} = 'Pending'",
-                maxRecords: 100,
-            })
-            .firstPage();
+        const data = await response.json();
 
-        //Map the raw Airtable rows into the clean JSON our frontend expects
-        const submissions = records.map((record) => ({
-            id: record.getId(), //Airtable's unique record ID
-            github_url: record.get('GitHub URL') || '',
-            playable_url: record.get('Playable URL') || '',
-            target_program: record.get('Program') || 'Unknown',
-            status: record.get('Status') || 'Pending',
-            birth_year: record.get('Birth Year') || null,
+        if(!response.ok) {
+            throw new Error(data?.error?.message || "Failed to fetch data from Airtable");
+        }
+
+        const submissions = (data.records || []).map((record: any) => ({
+            id: record.id,
+            github_url:
+                record.fields["GitHub URL"] ||
+                record.fields["github_url"] ||
+                "",
+            playable_url:
+                record.fields["Playable URL"] ||
+                record.fields["playable_url"] ||
+                "",
+            target_program:
+                record.fields["Target Program"] ||
+                record.fields["target_program"] ||
+                "Unknown",
+            status:
+                record.fields["Status"] ||
+                record.fields["status"] ||
+                "pending",
+            birth_year:
+                record.fields["Birth Year"] ||
+                record.fields["birth_year"] ||
+                null,
         }));
 
         return NextResponse.json(submissions);
-    } catch (error) {
-        console.error("Airtable fetch error:", error);
+    } catch (error: any) {
         return NextResponse.json(
-            { error: 'Failed to fetch data from Airtable.' },
-            {status: 500 }
+            { error: error.message || "Internal server error" },
+            { status: 500 }
         );
     }
 }
 
-export async function PATCH(request: Request) {
+export async function POST(request: Request) {
     try {
-        const apiKey = process.env.AIRTABLE_API_KEY;
-        const baseId = process.env.AIRTABLE_BASE_ID;
+        const body = await request.json();
+        const {
+            id,
+            status,
+            airtableToken,
+            airtableBaseId,
+            airtableTableName,
+        } = body;
 
-        if (!apiKey || !baseId) {
+        if(!id || !status || !airtableToken || !airtableBaseId || !airtableTableName) {
             return NextResponse.json(
-                { error: 'Airtable API key or Base ID is not configured.' },
-                { status: 500 }
+                { error: "Missing required fields or credentials" },
+                { status: 400 }
             );
         }
 
-        const body = await request.json();
-        const { id, status } = body;
-
-        const base = new Airtable({ apiKey }).base(baseId);
-
-        await base('Submissions').update([
+        const response = await fetch(
+            `https://api.airtable.com/v0/${airtableBaseId}/${encodeURIComponent(airtableTableName)}/${id}`,
             {
-                id: id,
-                fields: {
-                    Status: status,
+                method: "PATCH",
+                headers: {
+                    Authorization: `Bearer ${airtableToken}`,
+                    "Content-Type": "application/json",
                 },
-            },
-        ]);
+                body: JSON.stringify({
+                    fields: {
+                        Status: status,
+                    },
+                }),
+            }
+        );
 
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error("Airtable update error: ", error);
+        const data = await response.json();
+
+        if(!response.ok) {
+            throw new Error(data?.error?.message || "Failed to update Airtable");
+        }
+
+        return NextResponse.json(data);
+    } catch (error: any) {
         return NextResponse.json(
-            { error: 'Failed to update Airtable.' },
+            { error: error.message || "Internal server error" },
             { status: 500 }
         );
     }
