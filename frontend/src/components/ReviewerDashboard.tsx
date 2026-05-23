@@ -33,12 +33,11 @@ const COPYPASTAS = [
 
 // Sub-components
 const StatusDot = ({ status }: { status: Submission["status"] }) => {
-    // Default to pending color if status doesn't match
     const color = status === "clean" ? "bg-[#33d6a6]" : status === "flagged" ? "bg-[#ff8c37]" : "bg-[#8492a6]";
     return <span className={`w-2 h-2 rounded-full inline-block ${color}`} />;
 };
 
-const CheckRow = ({ result, label }: {result: CheckResult, label: string }) => (
+const CheckRow = ({ result, label }: { result: CheckResult, label: string }) => (
     <div className="flex items-start gap-2 py-1.5 border-b border-[#e0e6ed] last:border-0">
         {result.passed
           ? <CheckCircle className="w-4 h-4 text-[#33d6a6] mt-0.5 shrink-0" />
@@ -58,13 +57,14 @@ export default function ReviewerDashboard() {
     const [error, setError] = useState<string | null>(null);
     const [showStats, setShowStats] = useState(false);
     const [repoStats, setRepoStats] = useState<any>(null);
-    
-    // Added missing state variables
+
     const [iframeMode, setIframeMode] = useState<"demo" | "github" | "stats">("demo");
     const [preflight, setPreflight] = useState<PreflightResponse | null>(null);
     const [statsLoading, setStatsLoading] = useState(false);
     const [copied, setCopied] = useState<number | null>(null);
     const [urlInput, setUrlInput] = useState("");
+
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
     useEffect(() => {
         async function fetchQueue() {
@@ -105,7 +105,6 @@ export default function ReviewerDashboard() {
         );
     }
 
-    // Return an empty view if queue is empty and no active project
     if (!activeProject) {
         return (
             <div className="flex h-screen flex-col items-center justify-center bg-gray-50 text-gray-500">
@@ -118,7 +117,7 @@ export default function ReviewerDashboard() {
         setLoading(true);
         setPreflight(null);
         try {
-            const res = await fetch("http://127.0.0.1:8000/api/v1/preflight", {
+            const res = await fetch(`${API_BASE}/api/v1/preflight`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -129,7 +128,9 @@ export default function ReviewerDashboard() {
                 }),
             });
             setPreflight(await res.json());
-        } catch { /* Server might be off */ }
+        } catch {
+            /* Server might be off */
+        }
         setLoading(false);
     };
 
@@ -149,7 +150,6 @@ export default function ReviewerDashboard() {
             const commitsData = await commitsRes.json();
             const contributorsData = await contributorsRes.json();
 
-            // Check for AI Slop
             const commitDetails = await Promise.all(
                 commitsData.slice(0, 5).map((c: any) =>
                     fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${c.sha}`).then((r) => r.json())
@@ -176,13 +176,12 @@ export default function ReviewerDashboard() {
             console.error("Github API error", e);
         }
         setStatsLoading(false);
-    }
+    };
 
     const handleStatusUpdate = async (newStatus: string) => {
         if (!activeProject) return;
 
         try {
-            //Update Airtable via our new API route
             const res = await fetch("/api/airtable", {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
@@ -191,11 +190,9 @@ export default function ReviewerDashboard() {
 
             if (!res.ok) throw new Error("Failed to update status");
 
-            //Remove the project from the local queue so we can move to the next one
             const updatedQueue = queue.filter(p => p.id !== activeProject.id);
             setQueue(updatedQueue);
 
-            //Auto select the next project
             if (updatedQueue.length > 0) {
                 handleProjectSwitch(updatedQueue[0]);
             } else {
@@ -203,7 +200,7 @@ export default function ReviewerDashboard() {
             }
         } catch (err) {
             console.error(err);
-            alert("Failed to update project status. Please try again.")
+            alert("Failed to update project status. Please try again.");
         }
     };
 
@@ -227,7 +224,7 @@ export default function ReviewerDashboard() {
     return (
         <div
             className="h-screen w-full flex overflow-hidden"
-            style={{ fontFamily: "'Phantom Sans', system-ui, sans-serif", background: "#ec3750"}}>
+            style={{ fontFamily: "'Phantom Sans', system-ui, sans-serif", background: "#ec3750" }}>
                 {/* Left Panel */}
                 <div className="w-[220px] shrink-0 flex flex-col" style={{ background: "#f9d8de", borderRight: "2px solid #ec3750" }}>
                     {/* Logo */}
@@ -253,6 +250,7 @@ export default function ReviewerDashboard() {
                             <p className="text-sm font-bold text-white leading-tight">Swamstick</p>
                         </div>
                     </div>
+
                     {/* Search */}
                     <div className="px-3 mb-2 relative">
                         <Search className="w-3 h-3 absolute left-5 top-1/2 -translate-y-1/2 text-[#8492a6]" />
@@ -322,9 +320,9 @@ export default function ReviewerDashboard() {
                                         {icon}{label}
                                 </button>
                             ))}
-                            
                         </div>
                     </div>
+
                     {/* URL Bar */}
                     <div className="flex items-center gap-2 bg-[#f9d8de] rounded-xl px-4 py-2 border-2 border-[#17171d]/10">
                         <ExternalLink className="w-4 h-4 text-[#8492a6] shrink-0" />
@@ -335,8 +333,8 @@ export default function ReviewerDashboard() {
                         />
                         <a href={activeUrl} target="_blank" rel="noreferrer"
                             className="text-xs text-[#ec3750] font-bold hover:underline shrink-0">
-                            Open         
-                        </a> 
+                            Open
+                        </a>
                     </div>
 
                     {/* Iframe */}
@@ -357,7 +355,6 @@ export default function ReviewerDashboard() {
                                     </div>
                                 ) : repoStats ? (
                                     <div className="space-y-5">
-                                        {/* AI Slop Warning */}
                                         {repoStats.aiSlopFlag && (
                                             <div className="bg-[#ff8c37]/20 border-2 border-[#ff8c37] rounded-xl p-3 flex items-start gap-2">
                                                 <AlertTriangle className="w-4 h-4 text-[#ff8c37] mt-0.5 shrink-0" />
@@ -370,7 +367,6 @@ export default function ReviewerDashboard() {
                                             </div>
                                         )}
 
-                                        {/* Repo Info */}
                                         <div className="bg-[#17171d] rounded-xl p-4 space-y-2 border border-white/5">
                                             <p className="font-black text-white text-base">{repoStats.name}</p>
                                             {repoStats.description && (
@@ -397,7 +393,6 @@ export default function ReviewerDashboard() {
                                             </div>
                                         </div>
 
-                                        {/* Recent Commits */}
                                         <div className="bg-[#17171d] rounded-xl p-4 border border-white/5">
                                             <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6] mb-3">Recent Commits</p>
                                             <div className="space-y-2">
@@ -418,7 +413,6 @@ export default function ReviewerDashboard() {
                                             </div>
                                         </div>
 
-                                        {/* Contributors */}
                                         {repoStats.contributors.length > 0 && (
                                             <div className="bg-[#17171d] rounded-xl p-4 border border-white/5">
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6] mb-3">Contributors</p>
@@ -506,7 +500,7 @@ export default function ReviewerDashboard() {
                         <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6] mb-2">Copypasta Palette</p>
                         <div className="space-y-1.5">
                             {COPYPASTAS.map((c, i) => (
-                                <button 
+                                <button
                                     key={i}
                                     onClick={() => handleCopy(i, c.text)}
                                     className="w-full flex items-center justify-between bg-[#252429] hover:bg-[#333] text-white rounded-lg px-3 py-1.5 text-xs font-bold transition-all active:scale-95">
@@ -537,8 +531,8 @@ export default function ReviewerDashboard() {
                                 </button>
                             )}
 
-                            <button 
-                                onClick={() => handleStatusUpdate("Approved")} 
+                            <button
+                                onClick={() => handleStatusUpdate("Approved")}
                                 className="w-full bg-[#33d6a6] text-[#17171d] font-black text-sm py-3.5 rounded-xl border-2 border-[#1b7b5d] shadow-[0_4px_0_#1b7b5d] hover:bg-[#2bb88e] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all flex justify-center items-center">
                                 Approve
                             </button>
@@ -548,7 +542,7 @@ export default function ReviewerDashboard() {
                                 className="w-full bg-[#ec3750] text-white font-black text-sm py-3.5 rounded-xl border-2 border-[#7e0630] shadow-[0_4px_0_#7e0630] hover:bg-[#d02b42] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all flex justify-center items-center">
                                 Reject
                             </button>
-                    </div> 
+                    </div>
                 </div>
             </div>
     );
