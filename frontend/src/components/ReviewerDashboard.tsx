@@ -14,7 +14,7 @@ import {
   Plus,
   Search,
   Key,
-  Server,
+  Database,
   Shield,
 } from "lucide-react";
 
@@ -108,6 +108,8 @@ const CheckRow = ({
 );
 
 export default function ReviewerDashboard() {
+  const defaultBackendUrl = process.env.NEXT_PUBLIC_API_URL || "";
+
   const [queue, setQueue] = useState<Submission[]>([]);
   const [activeProject, setActiveProject] = useState<Submission | null>(null);
 
@@ -125,39 +127,62 @@ export default function ReviewerDashboard() {
   const [copied, setCopied] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const [showApiGate, setShowApiGate] = useState(true);
-  const [backendUrlInput, setBackendUrlInput] = useState(
-    process.env.NEXT_PUBLIC_API_URL || ""
-  );
+  const [backendUrl] = useState(defaultBackendUrl);
+
+  const [showAirtableGate, setShowAirtableGate] = useState(true);
+  const [airtableTokenInput, setAirtableTokenInput] = useState("");
+  const [airtableBaseIdInput, setAirtableBaseIdInput] = useState("");
+  const [airtableTableNameInput, setAirtableTableNameInput] = useState("Submissions");
   const [githubApiKeyInput, setGithubApiKeyInput] = useState("");
-  const [backendUrl, setBackendUrl] = useState("");
+
+  const [airtableToken, setAirtableToken] = useState("");
+  const [airtableBaseId, setAirtableBaseId] = useState("");
+  const [airtableTableName, setAirtableTableName] = useState("Submissions");
   const [githubApiKey, setGithubApiKey] = useState("");
+
   const [configError, setConfigError] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function fetchQueue() {
-      try {
-        const res = await fetch("/api/airtable");
-        if (!res.ok) throw new Error("Failed to fetch queue");
+  const fetchQueue = async (
+    tokenOverride?: string,
+    baseIdOverride?: string,
+    tableNameOverride?: string
+  ) => {
+    try {
+      setPageLoading(true);
+      setQueueError(null);
 
-        const data = await res.json();
-        setQueue(Array.isArray(data) ? data : []);
+      const token = tokenOverride ?? airtableToken;
+      const baseId = baseIdOverride ?? airtableBaseId;
+      const tableName = tableNameOverride ?? airtableTableName;
 
-        if (Array.isArray(data) && data.length > 0) {
-          setActiveProject(data[0]);
-        } else {
-          setActiveProject(null);
-        }
-      } catch (err: any) {
-        setQueueError(err?.message || "Failed to fetch queue");
-        setQueue([]);
+      const params = new URLSearchParams({
+        airtableToken: token,
+        airtableBaseId: baseId,
+        airtableTableName: tableName,
+      });
+
+      const res = await fetch(`/api/airtable?${params.toString()}`);
+      if (!res.ok) throw new Error("Failed to fetch queue");
+
+      const data = await res.json();
+      setQueue(Array.isArray(data) ? data : []);
+
+      if (Array.isArray(data) && data.length > 0) {
+        setActiveProject(data[0]);
+      } else {
         setActiveProject(null);
-      } finally {
-        setPageLoading(false);
       }
+    } catch (err: any) {
+      setQueueError(err?.message || "Failed to fetch queue");
+      setQueue([]);
+      setActiveProject(null);
+    } finally {
+      setPageLoading(false);
     }
+  };
 
-    fetchQueue();
+  useEffect(() => {
+    setPageLoading(false);
   }, []);
 
   const filteredQueue = useMemo(() => {
@@ -185,33 +210,44 @@ export default function ReviewerDashboard() {
     return headers;
   };
 
-  const handleEnterDashboard = () => {
+  const handleEnterDashboard = async () => {
     setConfigError(null);
 
-    const normalized = backendUrlInput.trim().replace(/\/$/, "");
-
-    if (!normalized) {
-      setConfigError("Backend URL is required.");
+    if (!airtableTokenInput.trim()) {
+      setConfigError("Airtable API token is required.");
       return;
     }
 
-    if (
-      !normalized.startsWith("http://") &&
-      !normalized.startsWith("https://")
-    ) {
-      setConfigError("Backend URL must start with http:// or https://");
+    if (!airtableBaseIdInput.trim()) {
+      setConfigError("Airtable Base ID is required.");
       return;
     }
 
-    setBackendUrl(normalized);
-    setGithubApiKey(githubApiKeyInput.trim());
-    setShowApiGate(false);
+    if (!airtableTableNameInput.trim()) {
+      setConfigError("Airtable Table Name is required.");
+      return;
+    }
+
+    const nextToken = airtableTokenInput.trim();
+    const nextBaseId = airtableBaseIdInput.trim();
+    const nextTable = airtableTableNameInput.trim();
+    const nextGithubKey = githubApiKeyInput.trim();
+
+    setAirtableToken(nextToken);
+    setAirtableBaseId(nextBaseId);
+    setAirtableTableName(nextTable);
+    setGithubApiKey(nextGithubKey);
+    setShowAirtableGate(false);
+
+    await fetchQueue(nextToken, nextBaseId, nextTable);
   };
 
   const handleEditConfig = () => {
-    setBackendUrlInput(backendUrl);
+    setAirtableTokenInput(airtableToken);
+    setAirtableBaseIdInput(airtableBaseId);
+    setAirtableTableNameInput(airtableTableName);
     setGithubApiKeyInput(githubApiKey);
-    setShowApiGate(true);
+    setShowAirtableGate(true);
   };
 
   const runPreflight = async () => {
@@ -248,7 +284,7 @@ export default function ReviewerDashboard() {
       setPreflight(data);
     } catch (err) {
       console.error(err);
-      alert("Preflight failed. Check backend URL, backend status, or API key.");
+      alert("Preflight failed. Check backend env or backend status.");
     } finally {
       setScanLoading(false);
     }
@@ -331,7 +367,13 @@ export default function ReviewerDashboard() {
       const res = await fetch("/api/airtable", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: activeProject.id, status: newStatus }),
+        body: JSON.stringify({
+          id: activeProject.id,
+          status: newStatus,
+          airtableToken,
+          airtableBaseId,
+          airtableTableName,
+        }),
       });
 
       if (!res.ok) throw new Error("Failed to update status");
@@ -384,7 +426,7 @@ export default function ReviewerDashboard() {
         background: "#ec3750",
       }}
     >
-      {showApiGate && !pageLoading && (
+      {showAirtableGate && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8de] p-5 shadow-[0_10px_0_#17171d]">
             <div className="mb-4 flex items-center gap-3">
@@ -396,29 +438,60 @@ export default function ReviewerDashboard() {
                   Dashboard Access
                 </p>
                 <h1 className="text-2xl font-black text-[#17171d]">
-                  Enter API Config
+                  Enter Airtable Config
                 </h1>
               </div>
             </div>
 
             <p className="mb-4 text-sm leading-relaxed text-[#17171d]/80">
-              Paste the backend URL and optionally a GitHub API key before using
-              the dashboard.
+              Enter your Airtable credentials to load the review queue.
             </p>
 
             <div className="space-y-3">
               <label className="block">
                 <div className="mb-1 flex items-center gap-1.5">
-                  <Server className="h-3.5 w-3.5 text-[#8492a6]" />
+                  <Key className="h-3.5 w-3.5 text-[#8492a6]" />
                   <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
-                    Backend URL
+                    Airtable API Token
+                  </span>
+                </div>
+                <input
+                  type="password"
+                  value={airtableTokenInput}
+                  onChange={(e) => setAirtableTokenInput(e.target.value)}
+                  placeholder="pat_xxxxxxxxx"
+                  className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-1 flex items-center gap-1.5">
+                  <Database className="h-3.5 w-3.5 text-[#8492a6]" />
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                    Airtable Base ID
                   </span>
                 </div>
                 <input
                   type="text"
-                  value={backendUrlInput}
-                  onChange={(e) => setBackendUrlInput(e.target.value)}
-                  placeholder="https://your-backend.onrender.com"
+                  value={airtableBaseIdInput}
+                  onChange={(e) => setAirtableBaseIdInput(e.target.value)}
+                  placeholder="appXXXXXXXXXXXXXX"
+                  className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-1 flex items-center gap-1.5">
+                  <Database className="h-3.5 w-3.5 text-[#8492a6]" />
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                    Airtable Table Name
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={airtableTableNameInput}
+                  onChange={(e) => setAirtableTableNameInput(e.target.value)}
+                  placeholder="Submissions"
                   className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
                 />
               </label>
@@ -595,7 +668,7 @@ export default function ReviewerDashboard() {
             onClick={handleEditConfig}
             className="rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs font-black text-white transition hover:bg-white/15"
           >
-            Edit API Config
+            Edit Airtable Config
           </button>
         </div>
 
@@ -626,11 +699,9 @@ export default function ReviewerDashboard() {
           {!activeProject ? (
             <div className="flex h-full items-center justify-center p-6 text-center">
               <div>
-                <p className="text-lg font-black text-white">
-                  Dashboard ready
-                </p>
+                <p className="text-lg font-black text-white">Dashboard ready</p>
                 <p className="mt-2 text-sm text-[#8492a6]">
-                  Add your API config, then load submissions once Airtable is working.
+                  Enter Airtable config to load the queue.
                 </p>
               </div>
             </div>
@@ -815,16 +886,26 @@ export default function ReviewerDashboard() {
           <div className="space-y-2">
             <div className="rounded-xl bg-[#252429] px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">
-                Backend
+                Airtable Base
               </p>
-              <p className="truncate text-xs text-white">{backendUrl || "Not set"}</p>
+              <p className="truncate text-xs text-white">
+                {airtableBaseId || "Not set"}
+              </p>
             </div>
             <div className="rounded-xl bg-[#252429] px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">
-                GitHub Key
+                Airtable Table
               </p>
-              <p className="text-xs text-white">
-                {githubApiKey ? "Added" : "Not provided"}
+              <p className="truncate text-xs text-white">
+                {airtableTableName || "Not set"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-[#252429] px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">
+                Backend URL
+              </p>
+              <p className="truncate text-xs text-white">
+                {backendUrl || "Missing NEXT_PUBLIC_API_URL"}
               </p>
             </div>
           </div>
