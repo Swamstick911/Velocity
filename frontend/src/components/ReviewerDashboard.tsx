@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { CheckCircle, XCircle, AlertTriangle, ExternalLink, Code, Clock, LogOut, Copy, Plus, Search } from "lucide-react";
+import { CheckCircle, XCircle, AlertTriangle, ExternalLink, Code, Clock, LogOut, Copy, Plus, Search, Key, Server } from "lucide-react";
 
 // Types
 interface CheckResult { passed: boolean; detail: string; }
@@ -64,7 +64,11 @@ export default function ReviewerDashboard() {
     const [copied, setCopied] = useState<number | null>(null);
     const [urlInput, setUrlInput] = useState("");
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+    const [backendUrl, setBackendUrl] = useState(
+        process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000"
+    );
+    const [githubApiKey, setGithubApiKey] = useState("");
+    const [configSaved, setConfigSaved] = useState(false);
 
     useEffect(() => {
         async function fetchQueue() {
@@ -113,13 +117,34 @@ export default function ReviewerDashboard() {
         );
     }
 
+    const saveConfig = () => {
+        setConfigSaved(true);
+        setTimeout(() => setConfigSaved(false), 1500);
+    };
+
+    const getGithubHeaders = () => {
+        const headers: HeadersInit = {};
+        if (githubApiKey.trim()) {
+            headers["Authorization"] = `Bearer ${githubApiKey.trim()}`;
+        }
+        return headers;
+    };
+
     const runPreflight = async () => {
         setLoading(true);
         setPreflight(null);
         try {
-            const res = await fetch(`${API_BASE}/api/v1/preflight`, {
+            const headers: HeadersInit = {
+                "Content-Type": "application/json",
+            };
+
+            if (githubApiKey.trim()) {
+                headers["Authorization"] = `Bearer ${githubApiKey.trim()}`;
+            }
+
+            const res = await fetch(`${backendUrl}/api/v1/preflight`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers,
                 body: JSON.stringify({
                     github_url: activeProject.github_url,
                     playable_url: activeProject.playable_url,
@@ -127,6 +152,7 @@ export default function ReviewerDashboard() {
                     target_program: activeProject.target_program,
                 }),
             });
+
             setPreflight(await res.json());
         } catch {
             /* Server might be off */
@@ -140,10 +166,12 @@ export default function ReviewerDashboard() {
         try {
             const [owner, repo] = githubUrl.replace("https://github.com/", "").split("/");
 
+            const githubHeaders = getGithubHeaders();
+
             const [repoRes, commitsRes, contributorsRes] = await Promise.all([
-                fetch(`https://api.github.com/repos/${owner}/${repo}`),
-                fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=100`),
-                fetch(`https://api.github.com/repos/${owner}/${repo}/contributors?per_page=10`),
+                fetch(`https://api.github.com/repos/${owner}/${repo}`, { headers: githubHeaders }),
+                fetch(`https://api.github.com/repos/${owner}/${repo}/commits?per_page=100`, { headers: githubHeaders }),
+                fetch(`https://api.github.com/repos/${owner}/${repo}/contributors?per_page=10`, { headers: githubHeaders }),
             ]);
 
             const repoData = await repoRes.json();
@@ -151,12 +179,16 @@ export default function ReviewerDashboard() {
             const contributorsData = await contributorsRes.json();
 
             const commitDetails = await Promise.all(
-                commitsData.slice(0, 5).map((c: any) =>
-                    fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${c.sha}`).then((r) => r.json())
+                (Array.isArray(commitsData) ? commitsData : []).slice(0, 5).map((c: any) =>
+                    fetch(`https://api.github.com/repos/${owner}/${repo}/commits/${c.sha}`, {
+                        headers: githubHeaders,
+                    }).then((r) => r.json())
                 )
             );
 
-            const maxAdditions = Math.max(...commitDetails.map((c: any) => c.stats?.additions ?? 0));
+            const maxAdditions = commitDetails.length > 0
+                ? Math.max(...commitDetails.map((c: any) => c.stats?.additions ?? 0))
+                : 0;
 
             setRepoStats({
                 name: repoData.name,
@@ -166,11 +198,11 @@ export default function ReviewerDashboard() {
                 language: repoData.language,
                 openIssues: repoData.open_issues_count,
                 pushedAt: repoData.pushed_at,
-                commitCount: commitsData.length,
-                commits: commitsData.slice(0, 10),
+                commitCount: Array.isArray(commitsData) ? commitsData.length : 0,
+                commits: Array.isArray(commitsData) ? commitsData.slice(0, 10) : [],
                 contributors: Array.isArray(contributorsData) ? contributorsData : [],
                 maxAdditions,
-                aiSlopFlag: commitsData.length <= 3 && maxAdditions > 500,
+                aiSlopFlag: Array.isArray(commitsData) && commitsData.length <= 3 && maxAdditions > 500,
             });
         } catch (e) {
             console.error("Github API error", e);
@@ -455,6 +487,46 @@ export default function ReviewerDashboard() {
                                 Age: {activeProject.birth_year ? 2026 - activeProject.birth_year : "Unknown"}
                             </span>
                         </div>
+                    </div>
+
+                    {/* API Config */}
+                    <div className="mx-3 mb-2 bg-[#17171d] text-white rounded-2xl p-3 flex-none">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6] mb-2">API Config</p>
+
+                        <label className="block mb-2">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <Server className="w-3 h-3 text-[#8492a6]" />
+                                <span className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">Backend URL</span>
+                            </div>
+                            <input
+                                type="text"
+                                value={backendUrl}
+                                onChange={(e) => setBackendUrl(e.target.value)}
+                                placeholder="https://your-backend.onrender.com"
+                                className="w-full rounded-lg bg-[#252429] border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-[#ec3750]"
+                            />
+                        </label>
+
+                        <label className="block">
+                            <div className="flex items-center gap-1.5 mb-1">
+                                <Key className="w-3 h-3 text-[#8492a6]" />
+                                <span className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">GitHub API Key</span>
+                            </div>
+                            <input
+                                type="password"
+                                value={githubApiKey}
+                                onChange={(e) => setGithubApiKey(e.target.value)}
+                                placeholder="Paste token here"
+                                className="w-full rounded-lg bg-[#252429] border border-white/10 px-3 py-2 text-xs text-white outline-none focus:border-[#ec3750]"
+                            />
+                        </label>
+
+                        <button
+                            onClick={saveConfig}
+                            className="mt-2 w-full bg-[#338eda] text-white font-black text-xs py-2.5 rounded-xl border-2 border-[#080861] shadow-[0_4px_0_#080861] active:shadow-[0_0px_0_#17171d] active:translate-y-1 transition-all"
+                        >
+                            {configSaved ? "Saved!" : "Save Config"}
+                        </button>
                     </div>
 
                     {/* Preflight Checks */}
