@@ -535,7 +535,7 @@ export default function ReviewerDashboard() {
       >
         <div className="relative flex h-20 items-center justify-end border-b border-[#ec3750]/30 p-3 pb-2">
           <img
-            src="https://assets.hackclub.com/flag-orpheus-top.png"
+            src="https://assets.hackclub.com/banners/2026.svg"
             alt="Hack Club"
             className="absolute -left-4 -top-2 h-auto w-32 drop-shadow-md"
           />
