@@ -154,7 +154,8 @@ export default function MobileReviewerDashboard({
                         <div className="flex items-center gap-2">
                             <img
                                 src="https://assets.hackclub.com/icon-rounded.svg"
-                                alt="Hack Club Logo" />
+                                alt="Hack Club Logo"
+                                className="h-8 w-8" />
                             <div>
                                 <p className="text-xs font-semibold text-[#5f6c7b]">Welcome to Velocity!</p>
                                 <p className="text-[10px] font-black uppercase tracking-[0.18rem] text-[#8492a6]">
@@ -344,8 +345,77 @@ export default function MobileReviewerDashboard({
                             </div>
                         )}
                         </div>
+
+                        {preflight && (
+                            <div className="mt-3 space-y-2">
+                                <MobileCheckRow result={preflight.readme_check} label="README"/>
+                                <MobileCheckRow 
+                                    result={preflight.playable_url_check}
+                                    label="Playable"/>
+                                <MobileCheckRow 
+                                    result={preflight.playable_url_check}
+                                    label="Playable URL" />
+                                <MobileCheckRow result={preflight.birth_year_check} label="Age"/>
+                                <MobileCheckRow
+                                    result={preflight.anti_fraud_check}
+                                    label="Anti Fraud"/>
+                            </div>
+                        )}
+
+                        {preflight && preflight.flags.length > 0 && (
+                            <div className="mt-3 rounded-[18px] border border-[#ffb703] bg-[#fff1bf] p-3">
+                                <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#9a6700]">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Fraud Warning
+                                </p>
+                                <div className="mt-2 space-y-1">
+                                    {preflight.flags.map((flag, idx) => (
+                                        <p key={idx} className="text-[11px] leading-snug text-[#17171d]">
+                                            {flag}
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="mt-4 rounded-[18px] bg-[#3e0000] p-3 text-white shadow-sm">
+                            <div className="flex items-center justify-between gap-2">
+                                <p className="text-[10px] font-black uppercase tracking-wider text-white/80">
+                                    Copypasta Palette
+                                </p>
+                                <Search className="h-3.5 w-3.5 text-white/70" />
+                            </div>
+
+                            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
+                                {copypastas.map((item, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => handleCopy(idx, item.text)}
+                                        className="shrink-0 rounded-md bg-white px-2.5 py-1.5 text-[10px] font-black text-[#17171d] shadow-sm">
+                                            {copied === idx ? "Copied!" : item.label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                 </div>
             </main>
+
+            <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-black/10 bg-[#f7c9d1]/95 px-3 backdrop-blur-sm lg:hidden">
+                <div className="mx-auto flex max-w-wd gap-3">
+                    <button
+                        onClick={() => handleStatusUpdate("Approved")}
+                        disabled={!activeProject}
+                        className="flex-1 rounded-2xl bg-[#19f319] py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#138913] transition active:translate-y-1 active:shadow-none disabled:opacity-50">
+                            Accept
+                    </button>
+                    <button
+                        onClick={() => handleStatusUpdate("Rejected")}
+                        disabled={!activeProject}
+                        className="flex-1 rounded-2xl bg-[#ff3b30] py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#b91c1c] transition active:translate-y-1 active:shadow-none disabled:opacity-50">
+                            Reject
+                    </button>
+                </div>
+            </footer>
         </div>
-    )
+    );
 }
