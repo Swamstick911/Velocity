@@ -4,6 +4,8 @@ import httpx
 import logging
 import sqlite3
 import secrets
+import hashlib
+import base64
 from datetime import datetime
 from contextlib import asynccontextmanager
 
@@ -362,22 +364,40 @@ async def health():
 @app.get("/api/auth/login")
 async def airtable_login(request: Request):
     state = secrets.token_hex(16)
+
+    code_verifier = secrets.token_urlsafe(64)
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+
     request.session["oauth_state"] = state
+    request.session["code_verifier"] = code_verifier
+
     params = "&".join([
         f"client_id={AIRTABLE_CLIENT_ID}",
         f"redirect_uri={AIRTABLE_REDIRECT_URI}",
         "response_type=code",
         "scope=data.records:read data.records:write schema.bases:read",
         f"state={state}",
+        f"code_challenge={code_challenge}",
+        "code_challenge_method=S256"
     ])
+
     return RedirectResponse(f"https://airtable.com/oauth2/v1/authorize?{params}")
 
 @app.get("/api/auth/callback")
-async def airtable_callback(request: Request, code: str | None = None, state: str | None = None):
+async def airtable_callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
+    if error:
+        raise HTTPException(status_code=400, detail=f"Airtable OAuth error: {error}")
+    
     if not code or not state:
         raise HTTPException(status_code=400, detail="Missing code or state from Airtable")
     if state != request.session.get("oauth_state"):
         raise HTTPException(status_code=400, detail="Invalid state")
+    
+    code_verifier = request.session.get("code_verifier")
+    if not code_verifier:
+        raise HTTPException(status_code=400, detail="Missing code verifier in session")
     
     async with httpx.AsyncClient() as client:
         token_resp = await client.post(
@@ -386,6 +406,7 @@ async def airtable_callback(request: Request, code: str | None = None, state: st
                 "grant_type": "authorization_code",
                 "code": code,
                 "redirect_uri": AIRTABLE_REDIRECT_URI,
+                "code_verifier": code_verifier,
             },
             auth=(AIRTABLE_CLIENT_ID, AIRTABLE_CLIENT_SECRET),
             headers={"Content-Type": "application/x-www-form-urlencoded"},
