@@ -475,13 +475,9 @@ export default function ReviewerDashboard() {
         fontFamily: "'Phantom Sans', system-ui, sans-serif",
         background: "#ec3750",
       }}>
-              <p className="mb-4 text-sm leading-relaxed text-[#17171d]/80">
-                Enter your Airtable credentials to load the review queue.
-              </p>
-
               {showAirtableGate && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
-                  <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8e] p-5 shadow-[0_10px_0_#17171d]">
+                  <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8de] p-5 shadow-[0_10px_0_#17171d]">
                     {/* Headers */}
                     <div className="mb-4 flex items-center gap-3">
                       <div className="rounded-2xl bg-[#17171d] p-3 text-white">
