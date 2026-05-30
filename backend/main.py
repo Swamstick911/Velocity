@@ -378,7 +378,7 @@ async def airtable_login(request: Request):
         "client_id": AIRTABLE_CLIENT_ID,
         "redirect_uri": AIRTABLE_REDIRECT_URI,
         "response_type": "code",
-        "scope": "data.records:read data.records:write schema.bases:read",
+        "scope": "data.records:read data.records:write schema.bases:read user.email:read",
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
