@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl, field_validator
 from dotenv import load_dotenv
 from starlette.middleware.sessions import SessionMiddleware
+from urllib.parse import urlencode
 
 #Config
 load_dotenv()
@@ -373,15 +374,15 @@ async def airtable_login(request: Request):
     request.session["oauth_state"] = state
     request.session["code_verifier"] = code_verifier
 
-    params = "&".join([
-        f"client_id={AIRTABLE_CLIENT_ID}",
-        f"redirect_uri={AIRTABLE_REDIRECT_URI}",
-        "response_type=code",
-        "scope=data.records:read data.records:write schema.bases:read",
-        f"state={state}",
-        f"code_challenge={code_challenge}",
-        "code_challenge_method=S256"
-    ])
+    params = urlencode({
+        "client_id": AIRTABLE_CLIENT_ID,
+        "redirect_uri": AIRTABLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "data.records:read data.records:write schema.bases:read",
+        "state": state,
+        "code_challenge": code_challenge,
+        "code_challenge_method": "S256",
+    })
 
     return RedirectResponse(f"https://airtable.com/oauth2/v1/authorize?{params}")
 
