@@ -23,8 +23,8 @@ ALLOWED_ORIGINS: list[str] = os.getenv(
 ).split(",")
 
 AIRTABLE_CLIENT_ID = os.getenv("AIRTABLE_CLIENT_ID")
-AIRTABLE_CLIENT_SECRET = os.getnenv("AIRTABLE_CLIENT_SECRET")
-AIRTABLE_DIRECT_URI = os.getenv("AIRTABLE_DIRECT_URI")
+AIRTABLE_CLIENT_SECRET = os.getenv("AIRTABLE_CLIENT_SECRET")
+AIRTABLE_REDIRECT_URI = os.getenv("AIRTABLE_REDIRECT_URI")
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET", secrets.token_hex(32))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
@@ -38,9 +38,28 @@ README_MIN_WORDS = 50 #will tune thsi
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("velocity")
 
+def get_db():
+    conn = sqlite3.connect("velocity.db")
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS reviewers (
+            email TEXT PRIMARY KEY,
+            airtable_access_token TEXT,
+            airtable_refresh_token TEXT,
+            airtable_token_expires_at INTEGER         
+        )             
+    """)
+    conn.commit()
+    conn.close()
+
 #App lifespan [shared async HTTP client (connection pooling)]
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    init_db()
     headers = {
         "User-Agent": "Velocity-Preflight/1.0",
         "Accept": "application/vnd.github.v3+json",
@@ -63,6 +82,8 @@ app = FastAPI(
     description="Automated pre-flight and anti-fraud checks for Hack Club YSWS reviewers",
     lifespan=lifespan,
 )
+
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 
 #CORS
 app.add_middleware(
@@ -337,3 +358,94 @@ async def run_preflight(payload: PreflightRequest):
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": app.version}
+
+@app.get("/api/auth/login")
+async def airtable_login(request: Request):
+    state = secrets.token_hex(16)
+    request.session["oauth_state"] = state
+    params = "&".join([
+        f"client_id={AIRTABLE_CLIENT_ID}",
+        f"redirect_uri={AIRTABLE_REDIRECT_URI}",
+        "response_type=code",
+        "scope=data.records:read data.records:write schema.bases:read",
+        f"state={state}",
+    ])
+    return RedirectResponse(f"https://airtable.com/oauth2/v1/authorize?{params}")
+
+@app.get("/api/auth/callback")
+async def airtable_callback(request: Request, code: str, state: str):
+    if state != request.session.get("oauth_state"):
+        raise HTTPException(status_code=400, detail="Invalid state")
+    
+    async with httpx.AsyncClient() as client:
+        token_resp = await client.post(
+            "https://airtable.com/oauth2/v1/token",
+            data={
+                "grant_type": "authorization_code",
+                "code": code,
+                "redirect_uri": AIRTABLE_REDIRECT_URI,
+            },
+            auth={AIRTABLE_CLIENT_ID, AIRTABLE_CLIENT_SECRET},
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        if token_resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Token exchange failed: {token_resp.text}")
+        
+        token_data = token_resp.json()
+        access_token = token_data.get("access_token")
+        refresh_token = token_data.get("refresh_token")
+        expires_at = int(datetime.now().timestamp()) + token_data.get("expires_in", 3600)
+
+        user_resp = await client.get(
+            "https://api.airtable.com/v0/meta/whoami",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
+        if user_resp.status_code != 200:
+            raise HTTPException(status_code=400, detail=f"Failed to fetch Airtable user info")
+        
+        email = user_resp.json().get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="No email returned from Airtable")
+        
+        conn = get_db()
+        conn.execute("""
+            INSERT INTO reviewers
+                (email, airtable_access_token, airtable_refresh_token, airtable_token_expires_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(email) DO UPDATE SET
+                airtable_access_token = excluded.airtable_access_token,
+                airtable_refresh_token = excluded.airtable_refresh_token,
+                airtable_token_expires_at = excluded.airtable_token_expires_at
+        """, (email, access_token, refresh_token, expires_at))
+        conn.commit()
+        conn.close()
+
+        request.session["email"] = email
+
+    return RedirectResponse(f"{FRONTEND_URL}/dashboard?email={email}")
+
+@app.get("/api/auth/me")
+async def get_me(request: Request):
+    email = request.session.get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    return {"email": email}
+
+@app.get("/api/config/get")
+async def get_config(email: str):
+    conn = get_db()
+    row = conn.execute(
+        "SELECT * FROM reviewers WHERE email = ?", (email,)
+    ).fetchone()
+    conn.close()
+    if not row:
+        raise HTTPException(status_code=404, detail="No config found for this email")
+    return {
+        "email": row["email"],
+        "airtable_access_token": row["airtable_access_token"],
+    }
+
+@app.post("/api/auth/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return {"success": True}
