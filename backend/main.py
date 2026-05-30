@@ -83,7 +83,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
 
 #CORS
 app.add_middleware(
@@ -385,7 +385,7 @@ async def airtable_callback(request: Request, code: str, state: str):
                 "code": code,
                 "redirect_uri": AIRTABLE_REDIRECT_URI,
             },
-            auth={AIRTABLE_CLIENT_ID, AIRTABLE_CLIENT_SECRET},
+            auth=(AIRTABLE_CLIENT_ID, AIRTABLE_CLIENT_SECRET),
             headers={"Content-Type": "application/x-www-form-urlencoded"},
         )
         if token_resp.status_code != 200:
