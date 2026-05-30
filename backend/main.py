@@ -373,7 +373,9 @@ async def airtable_login(request: Request):
     return RedirectResponse(f"https://airtable.com/oauth2/v1/authorize?{params}")
 
 @app.get("/api/auth/callback")
-async def airtable_callback(request: Request, code: str, state: str):
+async def airtable_callback(request: Request, code: str | None = None, state: str | None = None):
+    if not code or not state:
+        raise HTTPException(status_code=400, detail="Missing code or state from Airtable")
     if state != request.session.get("oauth_state"):
         raise HTTPException(status_code=400, detail="Invalid state")
     
