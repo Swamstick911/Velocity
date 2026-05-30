@@ -2,13 +2,17 @@ import os
 import re
 import httpx
 import logging
+import sqlite3
+import secrets
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, HttpUrl, field_validator
 from dotenv import load_dotenv
+from starlette.middleware.sessions import SessionMiddleware
 
 #Config
 load_dotenv()
@@ -17,6 +21,12 @@ GITHUB_TOKEN: str | None = os.getenv("GITHUB_TOKEN")
 ALLOWED_ORIGINS: list[str] = os.getenv(
     "ALLOWED_ORIGINS", "http://localhost:3000"
 ).split(",")
+
+AIRTABLE_CLIENT_ID = os.getenv("AIRTABLE_CLIENT_ID")
+AIRTABLE_CLIENT_SECRET = os.getnenv("AIRTABLE_CLIENT_SECRET")
+AIRTABLE_DIRECT_URI = os.getenv("AIRTABLE_DIRECT_URI")
+SESSION_SECRET_KEY = os.getenv("SESSION_SECRET", secrets.token_hex(32))
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 CURRENT_YEAR = datetime.now().year
 MIN_BIRTH_YEAR = 1900

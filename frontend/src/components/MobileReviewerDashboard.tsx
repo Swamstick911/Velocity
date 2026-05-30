@@ -1,4 +1,4 @@
-"use-client";
+"use client";
 
 import {
     AlertTriangle,
@@ -105,6 +105,10 @@ function StatusIndicator({ status }: { status?: string}) {
                     }`}/>
                 <span 
                     className={`h-2.5 w-2.5 rounded-full ${
+                        normalized === "flagged" ? "bg-[#ffb703]" : "bg-[#d1d5db]"
+                    }`}/>
+                <span 
+                    className={`h-2.5 w-2.5 rounded-full ${
                         normalized === "clean" || normalized === "approved"
                             ? "bg-[#19c37d]"
                             : "bg-[#d1d5db]"
@@ -141,8 +145,8 @@ export default function MobileReviewerDashboard({
         ? iframeMode === "demo"
             ? activeProject.playable_url
             : activeProject.github_url.replace(
-                "https://github.com",
-                "https://github1s.com"
+                "https://github.com/",
+                "https://github1s.com/"
             )
         : "";
 
@@ -250,7 +254,7 @@ export default function MobileReviewerDashboard({
                             className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm ${
                                 iframeMode === "github"
                                     ? "bg-[#ec3750] text-white"
-                                    : "bg-white17- text-[#17171d]"
+                                    : "bg-white/70 text-[#17171d]"
                             }`}>
                                 Repo
                         </button>
@@ -351,9 +355,6 @@ export default function MobileReviewerDashboard({
                                 <MobileCheckRow result={preflight.readme_check} label="README"/>
                                 <MobileCheckRow 
                                     result={preflight.playable_url_check}
-                                    label="Playable"/>
-                                <MobileCheckRow 
-                                    result={preflight.playable_url_check}
                                     label="Playable URL" />
                                 <MobileCheckRow result={preflight.birth_year_check} label="Age"/>
                                 <MobileCheckRow
@@ -401,7 +402,7 @@ export default function MobileReviewerDashboard({
             </main>
 
             <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-black/10 bg-[#f7c9d1]/95 px-3 backdrop-blur-sm lg:hidden">
-                <div className="mx-auto flex max-w-wd gap-3">
+                <div className="mx-auto flex max-w-md gap-3">
                     <button
                         onClick={() => handleStatusUpdate("Approved")}
                         disabled={!activeProject}

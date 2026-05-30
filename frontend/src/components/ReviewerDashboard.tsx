@@ -17,6 +17,7 @@ import {
   Key,
   Database,
   Shield,
+  Mail,
 } from "lucide-react";
 
 interface CheckResult {
@@ -129,13 +130,14 @@ export default function ReviewerDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
 
   const [backendUrl] = useState(defaultBackendUrl);
-
   const [showAirtableGate, setShowAirtableGate] = useState(true);
+  const [emailInput, setEmailInput] = useState("");
   const [airtableTokenInput, setAirtableTokenInput] = useState("");
   const [airtableBaseIdInput, setAirtableBaseIdInput] = useState("");
   const [airtableTableNameInput, setAirtableTableNameInput] = useState("Submissions");
   const [githubApiKeyInput, setGithubApiKeyInput] = useState("");
 
+  const [email, setEmail] = useState("");
   const [airtableToken, setAirtableToken] = useState("");
   const [airtableBaseId, setAirtableBaseId] = useState("");
   const [airtableTableName, setAirtableTableName] = useState("Submissions");
@@ -214,6 +216,11 @@ export default function ReviewerDashboard() {
   const handleEnterDashboard = async () => {
     setConfigError(null);
 
+    if (!emailInput.trim() || !emailInput.includes("@")) {
+      setConfigError("A valid email address is required.");
+      return;
+    }
+
     if (!airtableTokenInput.trim()) {
       setConfigError("Airtable API token is required.");
       return;
@@ -229,11 +236,13 @@ export default function ReviewerDashboard() {
       return;
     }
 
+    const nextEmail = emailInput.trim();
     const nextToken = airtableTokenInput.trim();
     const nextBaseId = airtableBaseIdInput.trim();
     const nextTable = airtableTableNameInput.trim();
     const nextGithubKey = githubApiKeyInput.trim();
 
+    setEmail(nextEmail);
     setAirtableToken(nextToken);
     setAirtableBaseId(nextBaseId);
     setAirtableTableName(nextTable);
@@ -244,6 +253,7 @@ export default function ReviewerDashboard() {
   };
 
   const handleEditConfig = () => {
+    setEmailInput(email);
     setAirtableTokenInput(airtableToken);
     setAirtableBaseIdInput(airtableBaseId);
     setAirtableTableNameInput(airtableTableName);
@@ -467,6 +477,22 @@ export default function ReviewerDashboard() {
               </p>
 
               <div className="space-y-3">
+                <label className="block">
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5 text-[#8492a6]"/>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                      Email Address
+                    </span>
+                  </div>
+                  <input
+                    type="email"
+                    value={emailInput}
+                    onChange={(e) => setEmailInput(e.target.value)}
+                    placeholder="reviewer@hackclub.com"
+                    className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
+                  />
+                </label>
+
                 <label className="block">
                   <div className="mb-1 flex items-center gap-1.5">
                     <Key className="h-3.5 w-3.5 text-[#8492a6]" />
@@ -903,6 +929,14 @@ export default function ReviewerDashboard() {
               </button>
             </div>
             <div className="space-y-2">
+              <div className="rounded-xl bg-[#252429] px-3 py-2">
+                <p className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">
+                  Email
+                </p>
+                <p className="truncate text-xs text-white">
+                  {email || "Not set"}
+                </p>
+              </div>
               <div className="rounded-xl bg-[#252429] px-3 py-2">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">
                   Airtable Base
