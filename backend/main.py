@@ -53,9 +53,19 @@ def init_db():
             email TEXT PRIMARY KEY,
             airtable_access_token TEXT,
             airtable_refresh_token TEXT,
-            airtable_token_expires_at INTEGER         
+            airtable_token_expires_at INTEGER,
+            airtable_base_id TEXT,
+            airtable_table_name TEXT
         )             
     """)
+    try:
+        conn.execute("ALTER TABLE reviewers ADD COLUMN airtable_base_id TEXT")
+    except:
+        pass
+    try:
+        conn.execute("ALTER TABLE reviewers ADD COLUMN airtable_table_name TEXT")
+    except:
+        pass
     conn.commit()
     conn.close()
 
@@ -467,9 +477,32 @@ async def get_config(email: str):
     return {
         "email": row["email"],
         "airtable_access_token": row["airtable_access_token"],
+        "airtable_base_id": row["airtable_base_id"],
+        "airtable_table_name": row["airtable_table_name"],
     }
 
 @app.post("/api/auth/logout")
 async def logout(request: Request):
     request.session.clear()
+    return {"success": True}
+
+@app.post("/api/config/save")
+async def save_config(request: Request):
+    body = await request.json()
+    email = body.get("email")
+    base_id = body.get("airtable_base_id")
+    table_name = body.get("airtable_table_name")
+
+    if not email or not base_id or not table_name:
+        raise HTTPException(status_code=400, detail="Missing required fields")
+    
+    conn = get_db()
+    conn.execute("""
+        UPDATE reviewers
+        SET airtable_base_id = ?, airtable_table_name = ?
+        WHERE email = ?
+    """, (base_id, table_name, email))
+    conn.commit()
+    conn.close()
+
     return {"success": True}

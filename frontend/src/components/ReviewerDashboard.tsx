@@ -135,6 +135,7 @@ export default function ReviewerDashboard() {
   const [airtableTokenInput, setAirtableTokenInput] = useState("");
   const [airtableBaseIdInput, setAirtableBaseIdInput] = useState("");
   const [airtableTableNameInput, setAirtableTableNameInput] = useState("Submissions");
+  const [needsSetup, setNeedsSetup] = useState(false)
   const [githubApiKeyInput, setGithubApiKeyInput] = useState("");
 
   const [email, setEmail] = useState("");
@@ -198,10 +199,17 @@ export default function ReviewerDashboard() {
       .then(data => {
         if (data.airtable_access_token) {
           setEmail(emailFromUrl);
-          setAirtableToken(data.airtable_access_token);
-          setShowAirtableGate(false);
-          fetchQueue(data.airtable_access_token, airtableBaseId, airtableTableName);
-          window.history.replaceState({}, "", "/dashboard");
+          setAirtableToken(data.airtable_access_token)
+
+          if (data.airtable_base_id && data.airtable_table_name) {
+            setAirtableBaseId(data.airtable_base_id)
+            setAirtableTableName(data.airtable_table_name)
+            setShowAirtableGate(false)
+            fetchQueue(data.airtable_access_token, data.airtable_base_id, data.airtable_table_name)
+          } else {
+            setNeedsSetup(true)
+          }
+          window.history.replaceState({}, "", "/dashboard")
         }
       })
       .catch(err => console.error("Failed to fetch config from backend", err));
@@ -475,6 +483,90 @@ export default function ReviewerDashboard() {
         fontFamily: "'Phantom Sans', system-ui, sans-serif",
         background: "#ec3750",
       }}>
+          {needsSetup && (
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+              <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8de] p-5 shadow-[0_10px_0_#17171d]">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="rounded-2xl bg-[#17171d] p-3 text-white">
+                    <Database className="h-5 w-5"/>
+                  </div>
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-[#8492a6]">
+                      One More step
+                    </p>
+                    <h1 className="text-2xl font-black text-[#17171d]">
+                      Connect your Base
+                    </h1>
+                  </div>
+                </div>
+
+                <p className="mb-4 text-sm leading-relaxed text-[#17171d]/80">
+                  Enter your Airtable Base ID and Table Name once. We will remember it for all of your devices.
+                </p>
+
+                <div className="space-y-3">
+                  <label className="block">
+                    <div className="mb-1 flex items-center gap-1.5">
+                      <Database className="h-3.5 w-3.5 text-[#8492a6]" />
+                      <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                        Airtable Base ID
+                      </span>
+                    </div>
+                    <input 
+                      type="text"
+                      value={airtableBaseIdInput}
+                      onChange={(e) => setAirtableBaseIdInput(e.target.value)} 
+                      placeholder="appXXXXXXXXXXXXXXX"
+                      className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"  
+                    />
+                  </label>
+
+                  <label className="block">
+                    <div className="mb-1 flex items-center gap-1.5">
+                      <Database className="h-3.5 w-3.5 text-[#8492a6]" />
+                      <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                        Airtable Table Name
+                      </span>
+                    </div>
+                    <input 
+                      type="text"
+                      value={airtableTableNameInput}
+                      onChange={(e) => setAirtableTableNameInput(e.target.value)}
+                      placeholder="Submissions"
+                      className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
+                    />
+                  </label>
+                </div>
+
+                <button
+                  onClick={async () => {
+                    if(!airtableBaseIdInput.trim() || !airtableTableNameInput.trim()) return
+                    const baseId = airtableBaseIdInput.trim()
+                    const tableName = airtableTableNameInput.trim()
+
+                    await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/config/save`, {
+                      method: "POST", 
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        email,
+                        airtable_base_id: baseId,
+                        airtable_table_name: tableName,
+                      }),
+                    })
+
+                    setAirtableBaseId(baseId)
+                    setAirtableTableName(tableName)
+                    setNeedsSetup(false)
+                    setShowAirtableGate(false)
+                    fetchQueue(airtableToken, baseId, tableName)
+                  }}
+                  className="mt-4 flex w-full items-center justify-center rounded-xl border-2 border-[#080861] bg-[#338eda] py-3 text-sm font-black text-white shadow-[0_4px_0_#080861] transition-all active:translate-y-1 active:shadow-none"
+                >
+                  Save and Load Queue
+                </button>
+              </div>
+            </div>
+          )}
               {showAirtableGate && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
                   <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8de] p-5 shadow-[0_10px_0_#17171d]">
