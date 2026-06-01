@@ -147,6 +147,8 @@ export default function ReviewerDashboard() {
 
   const [configError, setConfigError] = useState<string | null>(null);
 
+  const searchParams = useSearchParams()
+
   const fetchQueue = async (
     tokenOverride?: string,
     baseIdOverride?: string,
@@ -209,13 +211,15 @@ export default function ReviewerDashboard() {
             fetchQueue(data.airtable_access_token, data.airtable_base_id, data.airtable_table_name)
           } else {
             setNeedsSetup(true)
+            setShowAirtableGate(false)
           }
           window.history.replaceState({}, "", "/dashboard")
         }
       })
-      .catch(err => console.error("Failed to fetch config from backend", err));
+      .catch((err) => 
+        console.error("Failed to fetch config from backend", err));
     }
-  }, []);
+  }, [searchParams])
 
   const filteredQueue = useMemo(() => {
     if (!searchQuery.trim()) return queue;
