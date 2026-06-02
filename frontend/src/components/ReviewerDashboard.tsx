@@ -149,6 +149,25 @@ export default function ReviewerDashboard() {
 
   const searchParams = useSearchParams()
 
+  const copyToClipboard = async (text: string) => {
+    try {
+      if(navigator.clipboard && window.isSecureContext) {
+        await copyToClipboard(text);
+      } else {
+        const el = document.createElement("textarea");
+        el.value = text;
+        el.style.position = "fixed";
+        el.style.opacity = "0";
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand("copy");
+        document.body.removeChild(el);
+      }
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
+  };
+
   const fetchQueue = async (
     tokenOverride?: string,
     baseIdOverride?: string,
@@ -443,7 +462,7 @@ export default function ReviewerDashboard() {
 
   const handleCopy = async (idx: number, text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setCopied(idx);
       setTimeout(() => setCopied(null), 1800);
     } catch {

@@ -96,6 +96,25 @@ const MobileCheckRow = ({
 function StatusIndicator({ status }: { status?: string}) {
     const normalized = (status || "pending").toLowerCase();
 
+    const copyToClipboard = async (text: string) => {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await copyToClipboard(text);
+            } else {
+                const el = document.createElement("textarea");
+                el.value = text;
+                el.style.position = "fixed";
+                el.style.opacity = "0";
+                document.body.appendChild(el);
+                el.select();
+                document.execCommand("copy");
+                document.body.removeChild(el);
+            }
+        } catch (err) {
+            console.error("Copy failed:", err);
+        }
+    };
+
     return (
         <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
