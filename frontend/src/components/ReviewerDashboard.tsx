@@ -409,7 +409,7 @@ export default function ReviewerDashboard() {
 
     try {
       const res = await fetch("/api/airtable", {
-        method: "PATCH",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           id: activeProject.id,
@@ -420,19 +420,17 @@ export default function ReviewerDashboard() {
         }),
       });
 
-      if (!res.ok) throw new Error("Failed to update status");
-
-      const updatedQueue = queue.filter((p) => p.id !== activeProject.id);
-      setQueue(updatedQueue);
-
-      if (updatedQueue.length > 0) {
-        handleProjectSwitch(updatedQueue[0]);
-      } else {
-        setActiveProject(null);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to update status");
       }
-    } catch (err) {
+
+      //Remove from queue after approval/rejection
+      setQueue((prev) => prev.filter((p) => p.id !== activeProject.id));
+      setActiveProject(null);
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to update project status. Please try again.");
+      alert("Failed to update project status: " + err.message);
     }
   };
 
