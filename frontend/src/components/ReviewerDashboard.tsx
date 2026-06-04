@@ -59,22 +59,54 @@ interface RepoStats {
   aiSlopFlag: boolean;
 }
 
-const COPYPASTAS = [
+type CopypastaType = "public" | "private";
+
+interface Copypasta{
+  label: string;
+  type: CopypastaType;
+  text: string;
+}
+
+const COPYPASTAS: Copypasta[] = [
   {
     label: "Short README",
-    text: "We loved your project, but your README was a bit too short, try to add more details about the project and then resubmit!",
+    type: "public",
+    text: "We liked your project, but the README is too short right now. Please add more detail about what you built, how it works, and how to use it, then resubmit.",
   },
   {
     label: "Broken Link",
-    text: "Hey! Your playable link seems to be returning an error. Make sure the URL is live and active, then resubmit when fixed",
+    type: "public",
+    text: "Your playable link appears to be broken or unavailable right now. Please fix the link and resubmit",
+  },
+  {
+    label: "Needs description",
+    type: "public",
+    text: "Please add more context in the project description so reviewers can better understand what you built and what should be evaluated",
+  },
+  {
+    label: "Resubmit after fixes",
+    type: "public",
+    text: "This looks promising, but it needs a few fixes before approval. Please make the requested changes and resubmit"
   },
   {
     label: "AI Slop",
-    text: "Our checks flagged your submission for a suspiciously high amount of AI-generated content, if you want to reappeal, DM any of us",
+    type: "private",
+    text: "Flagged for suspiciously high AI generated content signals. Needs closer manual review.",
   },
   {
     label: "Double Dip",
-    text: "Seems like this project is already submitted to another YSWS. Each project can only be submitted to one YSWS program",
+    type: "private",
+    text: "Project may already be submitted to another YSWS. Check previous submissions before approval",
+  },
+  {
+    label: "Check reship",
+    type: "private",
+    text: "Possible reship project. Compare against previous submission history and prior approval context",
+  },
+  {
+    label: "Needs lead review",
+    type: "private",
+    text: "Edge case, recommend escalation to the program lead before final decision",
   },
 ];
 
@@ -147,12 +179,16 @@ export default function ReviewerDashboard() {
 
   const [configError, setConfigError] = useState<string | null>(null);
 
+  const [publicComment, setPublicComment] = useState("");
+  const [privateComment, setPrivateComment] = useState("");
+  const [copypastaFeedback, setCopypastaFeedback] = useState<string | null>(null);
+
   const searchParams = useSearchParams()
 
   const copyToClipboard = async (text: string) => {
     try {
       if(navigator.clipboard && window.isSecureContext) {
-        await copyToClipboard(text);
+        await navigator.clipboard.writeText(text);
       } else {
         const el = document.createElement("textarea");
         el.value = text;
@@ -165,6 +201,7 @@ export default function ReviewerDashboard() {
       }
     } catch (err) {
       console.error("Copy failed", err);
+      throw err;
     }
   };
 
@@ -458,6 +495,10 @@ export default function ReviewerDashboard() {
     setIframeMode("demo");
     setRepoStats(null);
     setPreflight(null);
+    setPublicComment("");
+    setPrivateComment("");
+    setCopied(null);
+    setCopypastaFeedback(null);
   };
 
   const handleCopy = async (idx: number, text: string) => {
@@ -468,6 +509,23 @@ export default function ReviewerDashboard() {
     } catch {
       alert("Could not copy text.");
     }
+  };
+
+  const appendComment = (
+    current: string,
+    nextText: string
+  ) => (current.trim() ? `${current.trim()}\n\n${nextText}` :  nextText);
+
+  const handleInsertCopypasta = (copypasta: Copypasta) => {
+    if(copypasta.type === "public") {
+      setPublicComment((prev) => appendComment(prev, copypasta.text));
+      setCopypastaFeedback(`Inserted "${copypasta.label}" into public comment`)
+    } else {
+      setPrivateComment((prev) => appendComment(prev, copypasta.text));
+      setCopypastaFeedback(`Inserted "${copypasta.label}" into private comment`)
+    }
+
+    setTimeout(() => setCopypastaFeedback(null), 1800);
   };
 
   const activeUrl = activeProject
@@ -1183,6 +1241,32 @@ export default function ReviewerDashboard() {
               <Plus className="h-3 w-3" />
               <span>Create a copypasta</span>
             </button>
+          </div>
+
+          <div className="mx-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
+              Review Comments
+            </p>
+
+            <div className="space-y-3">
+              <label className="block">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#33d6a6]">
+                    Public
+                  </span>
+                  <span className="text-[10px] text-[#8492a6]">
+                    Sent to submitter
+                  </span>
+                </div>
+                <textarea
+                  value={publicComment}
+                  onChange={(e) => setPublicComment(e.target.value)}
+                  placeholder="Write feedback visible to the user..."
+                  rows={4}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-[#252429] px-3 py-2 text-xs text-white outline-none placeholder:text-[#8492a6] focus:border-[#33d6a6]"
+                />
+              </label>
+            </div>
           </div>
 
           <div className="flex-1" />
