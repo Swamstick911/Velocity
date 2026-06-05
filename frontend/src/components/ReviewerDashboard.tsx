@@ -470,6 +470,8 @@ export default function ReviewerDashboard() {
         body: JSON.stringify({
           id: activeProject.id,
           status: newStatus,
+          publicComment,
+          privateComment,
           airtableToken,
           airtableBaseId,
           airtableTableName,
@@ -1221,26 +1223,50 @@ export default function ReviewerDashboard() {
             <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
               Copypasta Palette
             </p>
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               {COPYPASTAS.map((c, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleCopy(i, c.text)}
-                  className="flex w-full items-center justify-between rounded-lg bg-[#252429] px-3 py-1.5 text-xs font-bold text-white transition-all active:scale-95 hover:bg-[#333]"
-                >
-                  <span>{c.label}</span>
-                  {copied === i ? (
-                    <span className="text-[10px] text-[#33d6a6]">Copied!</span>
-                  ) : (
-                    <Copy className="h-3 w-3 text-[#8492a6]" />
-                  )}
-                </button>
+                <div key={i} className="rounded-lg bg-[#252429] p-2">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-bold text-white">{c.label}</p>
+                      <p
+                        className={`text-[10px] font-black uppercase tracking-wide ${
+                          c.type === "public" ? "text-[#33d6a6]" : "text-[#ff8c37]"
+                        }`}>
+                          {c.type}
+                        </p>
+                    </div>
+
+                    <button
+                      onClick={() => handleCopy(i, c.text)}
+                      className="rounded-md px-2 py-1 text-[#8492a6] transition hover:bg-white/5 hover:text-white"
+                      title="Copy to clipboard">
+                        {copied === i ? (
+                          <span className="text-[10px] text-[#33d6a6]">Copied!</span>
+                        ) : (
+                          <Copy className="h-3 w-3"/>
+                        )}
+                      </button>
+                  </div>
+
+                  <button
+                    onClick={() => handleInsertCopypasta(c)}
+                    className={`w-full rounded-md px-3 py-1.5 text-xs font-black transition ${
+                      c.type === "public"
+                        ? "bg-[#33d6a6] text-[#17171d] hover:bg-[#2bb88e]"
+                        : "bg-[#ff8c37] text-[#17171d] hover:bg-[#f07b22]"
+                    }`}>
+                      Insert into {c.type === "public" ? "Public" : "Private"}
+                    </button>
+                </div>
               ))}
             </div>
-            <button className="mt-2 flex w-full items-center justify-center gap-1 py-1 text-xs text-[#8492a6] transition-colors hover:text-white">
-              <Plus className="h-3 w-3" />
-              <span>Create a copypasta</span>
-            </button>
+
+            {copypastaFeedback && (
+              <p className="mt-2 text-[10px] font-bold text-[#8492a6]">
+                {copypastaFeedback}
+              </p>
+            )}
           </div>
 
           <div className="mx-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">
@@ -1264,6 +1290,24 @@ export default function ReviewerDashboard() {
                   placeholder="Write feedback visible to the user..."
                   rows={4}
                   className="w-full resize-none rounded-xl border border-white/10 bg-[#252429] px-3 py-2 text-xs text-white outline-none placeholder:text-[#8492a6] focus:border-[#33d6a6]"
+                />
+              </label>
+
+              <label className="block">
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-[#ff8c37]">
+                    Private
+                  </span>
+                  <span className="text-[10px] text-[#8492a6]">
+                    Reviewers and leads only
+                  </span>
+                </div>
+                <textarea
+                  value={privateComment}
+                  onChange={(e) => setPrivateComment(e.target.value)}
+                  placeholder="Internal review notes..."
+                  rows={4}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-[#252429] px-3 py-2 text-xs text-white outline-none placeholder:text-[#8492a6] focus:border-[#ff8c37]"
                 />
               </label>
             </div>
