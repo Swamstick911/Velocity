@@ -183,6 +183,16 @@ export default function ReviewerDashboard() {
   const [privateComment, setPrivateComment] = useState("");
   const [copypastaFeedback, setCopypastaFeedback] = useState<string | null>(null);
 
+  const [showNewCopypasta, setShowNewCopypasta] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newText, setNewText] = useState("");
+  const [customCopypastas, setCustomCopypastas] = useState<Copypasta[]>(() => {
+    if(typeof window === "undefined") return [];
+    try {
+      return JSON.parse(localStorage.getItem("velocity_custom_copypastas") || "[]");
+    } catch { return []; }
+  });
+
   const searchParams = useSearchParams()
 
   const copyToClipboard = async (text: string) => {
@@ -468,7 +478,7 @@ export default function ReviewerDashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: activeProject.id,
+          id: activeProject.id, 
           status: newStatus,
           publicComment,
           privateComment,
@@ -528,6 +538,27 @@ export default function ReviewerDashboard() {
     }
 
     setTimeout(() => setCopypastaFeedback(null), 1800);
+  };
+
+  const handleSaveNewCopypasta = () => {
+    if (!newLabel.trim() || !newText.trim()) return;
+    const newEntry: Copypasta = {
+      label: newLabel.trim(),
+      type: "private",
+      text: newText.trim(),
+    };
+    const updated = [...customCopypastas, newEntry];
+    setCustomCopypastas(updated);
+    localStorage.setItem("velocity_custom_copypastas", JSON.stringify(updated));
+    setNewLabel("");
+    setNewText("");
+    setShowNewCopypasta(false);
+  };
+
+  const handleDeleteCustomCopypasta = (idx: number) => {
+    const updated = customCopypastas.filter((_, i) => i !== idx);
+    setCustomCopypastas(updated);
+    localStorage.setItem("velocity_custom_copypastas", JSON.stringify(updated));
   };
 
   const activeUrl = activeProject
@@ -1224,38 +1255,33 @@ export default function ReviewerDashboard() {
               Copypasta Palette
             </p>
             <div className="space-y-2">
-              {COPYPASTAS.map((c, i) => (
+              {[...COPYPASTAS, ...customCopypastas].map((c, i) => (
                 <div key={i} className="rounded-lg bg-[#252429] p-2">
                   <div className="mb-2 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex items-center gap-1.5">
                       <p className="truncate text-xs font-bold text-white">{c.label}</p>
-                      <p
-                        className={`text-[10px] font-black uppercase tracking-wide ${
-                          c.type === "public" ? "text-[#33d6a6]" : "text-[#ff8c37]"
-                        }`}>
-                          {c.type}
-                        </p>
+                      <p className={`text-[10px] font-black uppercase tracking-wide ${c.type === "public" ? "text-[#33d6a6]" : "text-[#ff8c37]"}`}>{c.type}</p>
                     </div>
-
-                    <button
-                      onClick={() => handleCopy(i, c.text)}
-                      className="rounded-md px-2 py-1 text-[#8492a6] transition hover:bg-white/5 hover:text-white"
-                      title="Copy to clipboard">
-                        {copied === i ? (
-                          <span className="text-[10px] text-[#33d6a6]">Copied!</span>
-                        ) : (
-                          <Copy className="h-3 w-3"/>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleCopy(i, c.text)}
+                        className="rounded-md px-2 py-1 text-[#8492a6] transition hover:bg-white/5 hover:text-white"
+                        title="Copy to clipboard">
+                          { copied === i ? <span className="text-[10px] text-[#33d6a6]">Copied!</span> : <Copy className="h-3 w-3"/>}
+                        </button>
+                        {i >= COPYPASTAS.length && (
+                          <button
+                            onClick={() => handleDeleteCustomCopypasta(i - COPYPASTAS.length)}
+                            className="rounded-md px-2 py-1 text-[#8492a6] transition hover: bg-white/5 hover:text-[#ec3750]"
+                            title="Delete">
+                              <XCircle className="h-3 w-3"/>
+                            </button>
                         )}
-                      </button>
+                    </div>
                   </div>
-
                   <button
                     onClick={() => handleInsertCopypasta(c)}
-                    className={`w-full rounded-md px-3 py-1.5 text-xs font-black transition ${
-                      c.type === "public"
-                        ? "bg-[#33d6a6] text-[#17171d] hover:bg-[#2bb88e]"
-                        : "bg-[#ff8c37] text-[#17171d] hover:bg-[#f07b22]"
-                    }`}>
+                    className={`w-full rounded-md px-3 py-1.5 text-xs font-black transition ${c.type === "public" ? "bg-[#33d6a6] text-[#17171d] hover:bg-2bb88e" : "bg-ff8c37 text-[#17171d] hover:bg-[#f07b22]"}`}>
                       Insert into {c.type === "public" ? "Public" : "Private"}
                     </button>
                 </div>
@@ -1263,9 +1289,45 @@ export default function ReviewerDashboard() {
             </div>
 
             {copypastaFeedback && (
-              <p className="mt-2 text-[10px] font-bold text-[#8492a6]">
-                {copypastaFeedback}
-              </p>
+              <p className="mt-2 text-[10px] font-bold text-[#8492a6]">{copypastaFeedback}</p>
+            )}
+
+            {/* Create new Copypasta */}
+            {showNewCopypasta ? (
+              <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-[#252429] p-3">
+                <p className="text[10px] font-black uppercase tracking-widest text-[#8492a6]">New Copypasta</p>
+                <input
+                  value={newLabel}
+                  onChange={(e) => setNewLabel(e.target.value)}
+                  placeholder="Label (e.g. Wrong category)"
+                  className="w-full rounded-lg border border-white/10 bg-[#17171d] px-3 py-2 text-xs text-white outline-none placeholder:text-[#8492a6] focus:border-[#ff8c37]"
+                />
+                <textarea
+                  value={newText}
+                  onChange={(e) => setNewText(e.target.value)}
+                  placeholder="Message text..."
+                  rows={3}
+                  className="w-full resize-none rounded-lg border border-white/10 bg-[#17171d] px-3 py-2 text-xs text-white outline-none placeholder:text-[#8492a6] focus:border-[#ff8c37]"/>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveNewCopypasta}
+                    disabled={!newLabel.trim() || !newText.trim()}
+                    className="flex-1 rounded-lg bg-[#ff8c37] py-2 text-xs font-black text-[#17171d] transition hover:bg-[#f07b22] disabled:opacity-40">
+                      Save
+                  </button>
+                  <button
+                    onClick={() => { setShowNewCopypasta(false); setNewLabel(""); setNewText("") }}
+                    className="rounded-lg bg-white/10 px-3 py-2 text-xs font-black text-[#8492a6] transition hover:text-white">
+                      Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setShowNewCopypasta(true)}
+                className="mt-2 flex w-full items-center justify-center gap-1 py-1 text-xs text-[#8492a6] transition-colors hover:text-white">
+                  <Plus className="h-3 w-3"/>
+                </button>
             )}
           </div>
 
