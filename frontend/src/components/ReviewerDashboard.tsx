@@ -1327,6 +1327,7 @@ export default function ReviewerDashboard() {
                 onClick={() => setShowNewCopypasta(true)}
                 className="mt-2 flex w-full items-center justify-center gap-1 py-1 text-xs text-[#8492a6] transition-colors hover:text-white">
                   <Plus className="h-3 w-3"/>
+                  <span>Create a Copypasta</span>
                 </button>
             )}
           </div>
