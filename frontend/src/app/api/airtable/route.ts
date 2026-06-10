@@ -52,6 +52,20 @@ export async function GET(request: Request) {
                 record.fields["Birth Year"] ||
                 record.fields["birth_year"] ||
                 null,
+            description:
+                record.fields["Description"] ||
+                record.fields["description"] ||
+                record.fields["Project Description"] ||
+                record.fields["project_description"] ||
+                "",
+            public_comment:
+                record.fields["Public Comment"] ||
+                record.fields["public_comment"] ||
+                "",
+            private_comment:
+                record.fields["Private Comment"] ||
+                record.fields["private_comment"] ||
+                "",
         }));
 
         return NextResponse.json(submissions);

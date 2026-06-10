@@ -42,6 +42,9 @@ interface Submission {
   target_program: string;
   status: "pending" | "clean" | "flagged" | string;
   birth_year: number | null;
+  description: string;
+  public_comment: string;
+  private_comment: string;
 }
 
 interface RepoStats {
@@ -57,6 +60,12 @@ interface RepoStats {
   contributors: any[];
   maxAdditions: number;
   aiSlopFlag: boolean;
+}
+
+interface PreviousSubmission {
+  github_url: string;
+  program: string;
+  approved_at: number | null;
 }
 
 type CopypastaType = "public" | "private";
@@ -183,6 +192,9 @@ export default function ReviewerDashboard() {
   const [privateComment, setPrivateComment] = useState("");
   const [copypastaFeedback, setCopypastaFeedback] = useState<string | null>(null);
 
+  const [previousSubmissions, setPreviousSubmissions] = useState<PreviousSubmission[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   const [showNewCopypasta, setShowNewCopypasta] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newText, setNewText] = useState("");
@@ -242,8 +254,14 @@ export default function ReviewerDashboard() {
 
       if (Array.isArray(data) && data.length > 0) {
         setActiveProject(data[0]);
+        setPublicComment(data[0].public_comment || "");
+        setPrivateComment(data[0].private_comment || "");
+        fetchPreviousSubmissions(data[0].github_url);
       } else {
         setActiveProject(null);
+        setPublicComment("");
+        setPrivateComment("");
+        setPreviousSubmissions([]);
       }
     } catch (err: any) {
       setQueueError(err?.message || "Failed to fetch queue");
@@ -400,6 +418,32 @@ export default function ReviewerDashboard() {
     }
   };
 
+  const fetchPreviousSubmissions = async (githubUrl: string) => {
+    if(!backendUrl || !githubUrl) {
+      setPreviousSubmissions([]);
+      return;
+    }
+
+    try {
+      setHistoryLoading(true);
+
+      const params = new URLSearchParams({ github_url: githubUrl });
+      const res = await fetch(`${backendUrl}/api/submissions/history?${params.toString()}`);
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch submission history");
+      }
+
+      const data = await res.json();
+      setPreviousSubmissions(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to fetch previous submissions", err);
+      setPreviousSubmissions([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   const fetchRepoStats = async (githubUrl: string) => {
     setStatsLoading(true);
     setRepoStats(null);
@@ -509,10 +553,11 @@ export default function ReviewerDashboard() {
     setIframeMode("demo");
     setRepoStats(null);
     setPreflight(null);
-    setPublicComment("");
-    setPrivateComment("");
+    setPublicComment(p.public_comment || "");
+    setPrivateComment(p.private_comment || "");
     setCopied(null);
     setCopypastaFeedback(null);
+    fetchPreviousSubmissions(p.github_url);
   };
 
   const handleCopy = async (idx: number, text: string) => {
@@ -1158,6 +1203,26 @@ export default function ReviewerDashboard() {
                 {activeProject?.birth_year ? 2026 - activeProject.birth_year : "Unknown"}
               </span>
             </div>
+          </div>
+
+          <p className="mb-2 text-[10px] font-medium text-[#8492a6]">
+            Saved reviewer context loads automatically for each submission.
+          </p>
+
+          <div className="mx-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
+              Submission Description
+            </p>
+
+            {activeProject?.description?.trim() ? (
+              <p className="text-xs leading-relaxed text-[#d6d6dc] whitespace-pre-wrap">
+                {activeProject.description}
+              </p>
+            ) : (
+              <p className="text-xs text-[#8492a6]">
+                No description provided by the submitter
+              </p>
+            )}
           </div>
 
           <div className="mx-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">

@@ -142,6 +142,11 @@ class PreflightResponse(BaseModel):
     anti_fraud_check: CheckResult
     flags: list[str] #human-readable fraud/warning signals
 
+class PreviousSubmission(BaseModel):
+    github_url: str
+    program: str
+    approved_at: int | None
+
 
 #Helpers
 def parse_github_repo(github_url: str) -> tuple[str, str] | None:
@@ -594,3 +599,25 @@ async def github_repo_proxy(owner: str, repo: str):
         "contributors": contributors_data if isinstance(contributors_data, list) else [],
         "commitDetails": commit_details, 
     }
+
+@app.get("/api/submissions/history")
+async def submission_history(github_url: str):
+    clean_url = github_url.lower().rstrip("/")
+
+    conn = get_db()
+    rows = conn.execute("""
+        SELECT github_url, program, approved_at
+        FROM submissions
+        WHERE github_url = ?
+        ORDER BY approved_at DESC
+    """, (clean_url,)).fetchall()
+    conn.close()
+
+    return [
+        {
+            "github_url": row["github_url"],
+            "program": row["program"],
+            "approved_at": row["approved_at"],
+        }
+        for row in rows
+    ]
