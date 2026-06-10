@@ -56,7 +56,14 @@ def init_db():
             airtable_token_expires_at INTEGER,
             airtable_base_id TEXT,
             airtable_table_name TEXT
-        )             
+        )
+
+        CREATE TABLE IF NOT EXISTS submissions (
+            github_url TEXT NOT NULL,
+            program TEXT NOT NULL,
+            approved_at INTEGER,
+            PRIMARY KEY(github_url, program)
+        )         
     """)
     try:
         conn.execute("ALTER TABLE reviewers ADD COLUMN airtable_base_id TEXT")
@@ -135,10 +142,6 @@ class PreflightResponse(BaseModel):
     anti_fraud_check: CheckResult
     flags: list[str] #human-readable fraud/warning signals
 
-MOCK_SUBMISSION_DB = {
-    "https://github.com/hackclub/sprig": ["Sprig", "High Seas"],
-    "https://github.com/Swamstick911/Forxa": ["Stasis"]
-}
 
 #Helpers
 def parse_github_repo(github_url: str) -> tuple[str, str] | None:
@@ -277,17 +280,21 @@ async def run_anti_fraud_checks(
 
     #1. Double dip detection
     clean_url = str(github_url).lower().rstrip('/')
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT program FROM submissions WHERE github_url = ?", (clean_url,)
+    ).fetchall()
+    conn.close()
 
-    if clean_url in MOCK_SUBMISSION_DB: 
-        previous_programs = MOCK_SUBMISSION_DB[clean_url]
-
-        #If already submitted to different program, its a double dip!
+    if rows:
+        previous_programs = [r["program"] for r in rows]
         if any(prog != target_program for prog in previous_programs):
             flags.append(f"Double Dip - Repo previously submitted to {','.join(previous_programs)}.")
             return CheckResult(
                 passed=False,
                 detail="Double dipping detected: Project submitted to multiple YSWSs"
             ), flags
+        
     #2. AI/Mass Code Drop detection
     commits_url = f"https://api.github.com/repos/{owner}/{repo}/commits"
     try:
@@ -506,3 +513,49 @@ async def save_config(request: Request):
     conn.close()
 
     return {"success": True}
+
+class SubmissionRecord(BaseModel):
+    github_url: str
+    program: str
+
+@app.post("/api/submissions/record")
+async def record_submission(payload: SubmissionRecord):
+    clean_url = payload.github_url.lower().rstrip('/')
+    conn = get_db()
+    conn.execute("""
+        INSERT OR IGNORE INTO submissions (github_url, program, approved_at)
+        VALUES (?, ?, ?)
+    """, (clean_url, payload.program, int(datetime.now().timestamp())))
+    conn.commit()
+    conn.close()
+    return {"success": True}
+
+@app.get("/api/github/repo")
+async def github_repo_proxy(owner: str, repo: str):
+    client: httpx.AsyncClient = app.state.http_client
+
+    repo_res, commit_res, contributors_res = await asyncio.gather(
+        client.get(f"https://api.github.com/repo/{owner}/{repo}"),
+        client.get(f"https://api.github.com/repos/{owner}/{repo}/commits?per_page=10"),
+        client.get(f"https://api.github.com/repos/{owner}/{repo}/contributors?per_page=10"),
+    )
+
+    repo_data = repo_res.json() if repo_res.status_code == 200 else {}
+    commits_data = commits_res.json() if commits_res.status_code == 200 else []
+    contributors_data = contributors_res.json() if contributors_res.status_code == 200 else []
+
+    safe_commits = commits_data if isinstance(commits_data, list) else []
+
+    #Fetch detail for top 5 commits
+    commit_details = []
+    for c in safe_commits[:5]:
+        r = await client.get(f"https://api.github.com/repos/{owner}/{repo}/commits/{c['sha']}")
+        if r.status_code == 200:
+            commit_details.append(r.json())
+
+    return {
+        "repo": repo_data,
+        "commits": safe_commits,
+        "contributors": contributors_data if isinstance(contributors_data, list) else [],
+        "commitDetails": commit_details, 
+    }
