@@ -69,6 +69,8 @@ export async function POST(request: Request) {
         const {
             id,
             status,
+            publicComment,
+            privateComment,
             airtableToken,
             airtableBaseId,
             airtableTableName,
@@ -81,6 +83,18 @@ export async function POST(request: Request) {
             );
         }
 
+        const fields: Record<string, any> = {
+            Status: status,
+        };
+
+        if (typeof publicComment === "string") {
+            fields["Public Comment"] = publicComment;
+        }
+
+        if (typeof privateComment === "string") {
+            fields["Private Comment"] = publicComment;
+        }
+
         const response = await fetch(
             `https://api.airtable.com/v0/${airtableBaseId}/${encodeURIComponent(airtableTableName)}/${id}`,
             {
@@ -89,29 +103,9 @@ export async function POST(request: Request) {
                     Authorization: `Bearer ${airtableToken}`,
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({
-                    fields: {
-                        Status: status,
-                    },
-                }),
+                body: JSON.stringify({ fields }),
             }
         );
-
-        const { publicComment, privateComment, targetProgram, githubUrl } = body;
-
-        if (status === "Approved" && githubUrl && targetProgram) {
-            await fetch(
-                `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/submissions/record`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        github_url: githubUrl,
-                        program: targetProgram,
-                    }),
-                }
-            ).catch(() => {});
-        }
 
         const data = await response.json();
 
