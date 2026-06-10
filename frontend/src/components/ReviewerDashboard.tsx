@@ -478,13 +478,15 @@ export default function ReviewerDashboard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id: activeProject.id, 
+          id: activeProject.id,
           status: newStatus,
           publicComment,
           privateComment,
           airtableToken,
           airtableBaseId,
           airtableTableName,
+          githubUrl: activeProject.github_url,
+          targetProgram: activeProject.target_program,
         }),
       });
 

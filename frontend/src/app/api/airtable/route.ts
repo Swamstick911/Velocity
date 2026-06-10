@@ -97,6 +97,22 @@ export async function POST(request: Request) {
             }
         );
 
+        const { publicComment, privateComment, targetProgram, githubUrl } = body;
+
+        if (status === "Approved" && githubUrl && targetProgram) {
+            await fetch(
+                `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/submissions/record`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        github_url: githubUrl,
+                        program: targetProgram,
+                    }),
+                }
+            ).catch(() => {});
+        }
+
         const data = await response.json();
 
         if(!response.ok) {

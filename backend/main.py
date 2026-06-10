@@ -481,6 +481,41 @@ async def get_config(email: str):
     conn.close()
     if not row:
         raise HTTPException(status_code=404, detail="No config found for this email")
+    
+    access_token = row["airtable_access_token"]
+    expires_at = row["airtable_token_expires_at"] or 0
+
+    #Refresh if token expires within 5 minutes
+    if int(datetime.now().timestamp()) >= expires_at - 300:
+        refresh_token = row["airtable_refresh_token"]
+        if refresh_token:
+            async with httpx.AsyncClient() as client:
+                token_resp = await client.post(
+                    "https://airtable.com/oauth2/v1/token",
+                    data={
+                        "grant_type": "refresh_token",
+                        "refresh_token": refresh_token,
+                    },
+                    auth=(AIRTABLE_CLIENT_ID, AIRTABLE_CLIENT_SECRET),
+                    headers={"Content-Type": "application/x-www-form-urlencoded"},
+                )
+            if token_resp.status_code == 200:
+                token_data = token_resp.json()
+                access_token = token_data.get["access_token"]
+                new_refresh = token_data.get("refresh_token", refresh_token)
+                new_expires = int(datetime.now().timestamp()) + token_data.get("expires_in", 3600)
+                conn = get_db()
+                conn.execute("""
+                    UPDATE reviewers
+                    SET airtable_access_token = ?,
+                        airtable_refresh_token = ?,
+                        airtable_token_expires_at = ?
+                    WHERE email = ?
+                """, (access_token, new_refresh, new_expires, email))
+                conn.commit()
+                conn.close()
+                logger.info("Refreshed Airtable token for %s", email)
+                
     return {
         "email": row["email"],
         "airtable_access_token": row["airtable_access_token"],
