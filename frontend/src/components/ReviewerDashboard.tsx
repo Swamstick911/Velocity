@@ -197,6 +197,12 @@ export default function ReviewerDashboard() {
   const [previousSubmissions, setPreviousSubmissions] = useState<PreviousSubmission[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [programFilter, setProgramFilter] = useState("all");
+  const [onlyWithHistory, setOnlyWithHistory] = useState(false);
+  const [onlyWithHackatime, setOnlyWithHackatime] = useState(false);
+  const [touchGrassMode, setTouchGrassMode] = useState(false);
+
   const [showNewCopypasta, setShowNewCopypasta] = useState(false);
   const [newLabel, setNewLabel] = useState("");
   const [newText, setNewText] = useState("");
@@ -307,18 +313,68 @@ export default function ReviewerDashboard() {
     }
   }, [searchParams])
 
+  const summaryCounts = useMemo(() => {
+    return {
+      total: queue.length,
+      pending: queue.filter((p) => (p.status || "pending") === "pending").length,
+      clean: queue.filter((p) => p.status === "clean").length,
+      flagged: queue.filter((p) => p.status === "flagged").length,
+    };
+  }, [queue]);
+
+  const programOptions = useMemo(() => {
+    return Array.from(
+      new Set(queue.map((p) => p.target_program).filter(Boolean))
+    ).sort();
+  }, [queue]);
+
   const filteredQueue = useMemo(() => {
-    if (!searchQuery.trim()) return queue;
-    const q = searchQuery.toLowerCase();
-    return queue.filter((p) => {
-      const repoName = p.github_url.split("/").pop() || "";
-      return (
-        repoName.toLowerCase().includes(q) ||
-        p.target_program.toLowerCase().includes(q) ||
-        p.github_url.toLowerCase().includes(q)
-      );
-    });
-  }, [queue, searchQuery]);
+    let results = queue;
+
+    if(searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      results = results.filter((p) => {
+        const repoName = p.github_url.split("/").pop() || "";
+        return (
+          repoName.toLowerCase().includes(q) ||
+          p.target_program.toLowerCase().includes(q) ||
+          p.github_url.toLowerCase().includes(q)
+        );
+      });
+    }
+
+    if (statusFilter !== "all") {
+      results = results.filter((p) => (p.status || "pending") === statusFilter);
+    }
+
+    if(programFilter !== "all") {
+      results = results.filter((p) => p.target_program === programFilter);
+    }
+
+    if(onlyWithHackatime) {
+      results = results.filter((p) => {
+        const hasHours =
+          p.hackatime_hours !== null &&
+          p.hackatime_hours !== "" &&
+          p.hackatime_hours !== undefined;
+        const hasProjects = normalizeHackatimeProjects(p.hackatime_projects).length > 0;
+        return hasHours || hasProjects; 
+      });
+    }
+
+    if (onlyWithHistory) {
+      results = results.filter((p) => p.github_url && p.github_url.trim().length > 0);
+    }
+
+    return results;
+  }, [
+    queue,
+    searchQuery,
+    statusFilter,
+    programFilter,
+    onlyWithHistory,
+    onlyWithHackatime,
+  ])
 
   const getGithubHeaders = (): HeadersInit => {
     const headers: HeadersInit = {
@@ -905,9 +961,9 @@ export default function ReviewerDashboard() {
               <p className="text-[10px] font-bold uppercase leading-none tracking-wider text-[#8492a6]">
                 Reviewer
               </p>
-              <p className="text-sm font-bold leading-tight text-white">
-                Swamstick
-              </p>
+              <div className="text-sm font-black text-[#17171d]">
+                {email ? email.split("@")[0] : "Reviewer"}
+              </div>
             </div>
           </div>
 
@@ -920,6 +976,85 @@ export default function ReviewerDashboard() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border border-[#ec3750]/30 bg-white py-1.5 pl-7 pr-2 text-xs transition-colors focus:outline-none focus:border-[#ec3750]"
             />
+          </div>
+
+          <div className="mb-3 space-y-2 rounded-xl border border-[#ec3750]/20 bg-white/70 p-2">
+            <div className="grid grid-cols-2 gap-2 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
+              <div className="rounded-lg bg-[#f3f4f6] px-2 py-2">
+                Total
+                <div className="mt-1 text-sm text-[#17171d]">{summaryCounts.total}</div>
+              </div>
+              <div className="rounded-lg bg-[#f3f4f6] px-2 py-2">
+                Pending
+                <div className="mt-1 text-sm text-[#17171d]">{summaryCounts.pending}</div>
+              </div>
+              <div className="rounded-lg bg-[#f3f4f6] px-2 py-2">
+                Clean
+                <div className="mt-1 text-sm text-[#17171d]">{summaryCounts.clean}</div>
+              </div>
+              <div className="rounded-lg bg-[#f3f4f6] px-2 py-2">
+                Flagged
+                <div className="mt-1 text-sm text-[#17171d]">{summaryCounts.flagged}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="rounded-lg border border-[#ec3750]/20 bg-white px-2 py-2 text-xs text-[#17171d] outline-none">
+                  <option value="all">All statuses</option>
+                  <option value="pending">Pending</option>
+                  <option value="clean">Clean</option>
+                  <option value="flagged">Flagged</option>
+              </select>
+
+              <select
+                value={programFilter}
+                onChange={(e) => setProgramFilter(e.target.value)}
+                className="rounded-lg border border-[#ec3750]/20 bg-white px-2 py-2 text-xs text-[#17171d] outline-none">
+                  <option value="all">All programs</option>
+                  {programOptions.map((program) => (
+                    <option key={program} value={program}>
+                      {program}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setOnlyWithHackatime((prev) => !prev)}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest transition ${
+                  onlyWithHackatime
+                    ? "bg-[#ec3750] text-white"
+                    : "bg-[#fef4f6] text-[#8492a6]"
+                }`}>
+                  Hackatime
+                </button>
+
+              <button
+                onClick={() => setOnlyWithHistory((prev) => !prev)}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-widest transition ${
+                  onlyWithHistory
+                    ? "bg-[#ec3750] text-white"
+                    : "bg-[#f3f4f6] text-[#8492a6]"
+                }`}>
+                  History
+                </button>
+
+              <button
+                onClick={() => {
+                  setStatusFilter("all");
+                  setProgramFilter("all");
+                  setOnlyWithHackatime(false);
+                  setOnlyWithHistory(false);
+                  setSearchQuery("");
+                }}
+                className="rounded-full bg-[#17171d] px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-white">
+                  Reset
+              </button>
+            </div>
           </div>
 
           <p className="mb-1 px-4 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
@@ -974,15 +1109,22 @@ export default function ReviewerDashboard() {
             )}
           </div>
 
-          <div className="border-t border-[#ec3750]/30 p-3">
-            <Link
-              href="/"
-              className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-[#33d6a6] py-2.5 text-xs font-black text-[#17171d] transition-all active:scale-95 hover:bg-[#2bb88e]"
-            >
-              <LogOut className="h-3.5 w-3.5" />
+          <button
+            onClick={() => {
+              setTouchGrassMode(true);
+              setActiveProject(null);
+              setPreflight(null);
+              setRepoStats(null);
+              setPreviousSubmissions([]);
+              setPublicComment("");
+              setPrivateComment("");
+              setCopied(null);
+              setCopypastaFeedback(null);
+              setIframeMode("demo");
+            }}
+            className="rounded-xl border-2 border-[#17171d] bg-[#33d6a6] px-3 py-2 text-xs font-black text-[#17171d] shadow-[0_3px_0_#17171d] shadow-[0_3px_0_#17171d] transition-all active:translate-y-1 active:shadow-none">
               Touch Grass
-            </Link>
-          </div>
+          </button>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col gap-3 p-3">

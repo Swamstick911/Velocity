@@ -621,3 +621,7 @@ async def submission_history(github_url: str):
         }
         for row in rows
     ]
+
+@app.get("/")
+async def root():
+    return {"status": "ok", "message": "Velocity backend is running"}

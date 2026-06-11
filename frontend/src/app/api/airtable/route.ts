@@ -15,7 +15,7 @@ export async function GET(request: Request) {
         }
 
         const response = await fetch(
-            `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}?view=Grid%20view`,
+            `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`,
             {
                 headers: {
                     Authorization: `Bearer ${token}`,
