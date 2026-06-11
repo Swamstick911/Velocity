@@ -45,6 +45,8 @@ interface Submission {
   description: string;
   public_comment: string;
   private_comment: string;
+  hackatime_hours: number | string | null;
+  hackatime_projects: string[] | string;
 }
 
 interface RepoStats {
@@ -616,6 +618,20 @@ export default function ReviewerDashboard() {
           "https://github1s.com/"
         )
     : "";
+
+  const normalizeHackatimeProjects = (value: string[] | string | null | undefined):
+  string[] => {
+    if (Array.isArray(value)) return value.filter(Boolean);
+
+    if (typeof value === "string") {
+      return value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean)
+    }
+
+    return [];
+  };
 
   return (
     <>
@@ -1223,6 +1239,70 @@ export default function ReviewerDashboard() {
                 No description provided by the submitter
               </p>
             )}
+          </div>
+
+          <div className="mx-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
+              Previous Submissions
+            </p>
+
+            {historyLoading ? (
+              <p className="text-xs text-[#8492a6]">Loading submission history...</p>
+            ) : previousSubmissions.length > 0 ? (
+              <div className="space-y-2">
+                {previousSubmissions.map((item, i) => (
+                  <div key={`${item.program}-${item.approved_at ?? i}`} className="rounded-xl bg-[#252429] px-3 py-2">
+                    <p className="text-xs font-bold text-white">{item.program}</p>
+                    <p className="mt-0.5 text-[10px] text-[#8492a6]">
+                      {item.approved_at
+                        ? `Approved ${new Date(item.approved_at * 1000).toLocaleDateString()}`
+                        : "Recorded in history"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-[#8492a6]">
+                No previous submissions found for this repo
+              </p>
+            )}
+          </div>
+
+          <div className="mx-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">
+            <p className="mb-2 text=[10px] font-black uppercase tracking-widest text-[#8492a6]">
+              Hackatime
+            </p>
+
+            <div className="mb-2 rounded-xl bg-[#252429] px-3 py-2">\
+              <p className="text-[10px] uppercase tracking-widest text-[#8492a6]">
+                Tracked Hours
+              </p>
+              <p className="mt-1 text-lg font-black text-white">
+                {activeProject?.hackatime_hours ?? "-"}
+              </p>
+            </div>
+
+            <div>
+              <p className="mb-2 text-[10px] uppercase tracking-widest text-[#8492a6]">
+                Project Names
+              </p>
+
+              {normalizeHackatimeProjects(activeProject?.hackatime_projects).length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {normalizeHackatimeProjects(activeProject?.hackatime_projects).map((project) => (
+                    <span
+                      key={project}
+                      className="rounded-full bg-[#252429] px-2 py-1 text-[10px] font-medium text-[#d6d6dc]">
+                        {project}
+                      </span>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-[#8492a6]">
+                  No hackatime project names found
+                </p>
+              )}
+            </div>
           </div>
 
           <div className="mx-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">

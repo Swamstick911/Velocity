@@ -66,6 +66,16 @@ export async function GET(request: Request) {
                 record.fields["Private Comment"] ||
                 record.fields["private_comment"] ||
                 "",
+            hackatime_hours:
+                record.fields["Hackatime Hours"] ??
+                record.fields["hackatime_hours"] ??
+                record.fields["Hours"] ??
+                null,
+            hackatime_projects:
+                record.fields["Hackatime Projects"] ||
+                record.fields["hackatime_projects"] ||
+                record.fields["Project Names"] ||
+                [],
         }));
 
         return NextResponse.json(submissions);
