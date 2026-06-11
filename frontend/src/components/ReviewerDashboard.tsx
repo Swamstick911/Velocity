@@ -607,6 +607,8 @@ export default function ReviewerDashboard() {
   };
 
   const handleProjectSwitch = (p: Submission) => {
+    setTouchGrassMode(false);
+    setActiveProject(p);
     setActiveProject(p);
     setIframeMode("demo");
     setRepoStats(null);
@@ -1189,12 +1191,26 @@ export default function ReviewerDashboard() {
 
           <div className="relative flex-1 overflow-hidden rounded-2xl border-2 border-[#17171d]/30 bg-[#252429]">
             {!activeProject ? (
-              <div className="flex h-full items-center justify-center p-6 text-center">
-                <div>
-                  <p className="text-lg font-black text-white">Dashboard ready</p>
-                  <p className="mt-2 text-sm text-[#8492a6]">
-                    Enter Airtable config to load the queue.
+              <div className="flex h-full min-h-[320px] items-center justify-center">
+                <div className="max-w-md rounded-2xl border border-[#17171d]/10 bg-white px-6 py-8 text-center shadow-sm">
+                  <p className="text-xs font-black uppercase tracking-[0.2rem] text-[#8492a6]">
+                    {touchGrassMode ? "Break Mode" : "Dashboard Ready"}
                   </p>
+                  <h3 className="mt-2 text-xl font-black text-[#17171d]">
+                    {touchGrassMode ? "You touched some grass" : "No project selected"}
+                  </h3>
+                  <p className="mt-2 text-sm text-[#5c6675]">
+                    {touchGrassMode
+                      ? "Drink some water, blink twice and then pick the next submission"
+                      : "Pick a submission from the queue to load reviewer context"}
+                  </p>
+                  {touchGrassMode && (
+                    <button
+                      onClick={() => setTouchGrassMode(false)}
+                      className="mt-4 rounded-xl border-2 border-[#17171d] bg-[#ffb703] px-4 py-2 text-xs font-black text-[#17171d] shadow-[0_3px_0_#17171d] transition-all active:translate-y-1 active:shadow-none">
+                        Back to reviewing
+                      </button>
+                  )}
                 </div>
               </div>
             ) : iframeMode !== "stats" ? (
