@@ -622,6 +622,46 @@ async def submission_history(github_url: str):
         for row in rows
     ]
 
+class HistoryCountRequest(BaseModel):
+    github_urls: list[str]
+
+@app.post("/api/submissions/history-counts")
+async def get_history_counts(payload: HistoryCountRequest):
+    """
+    Takes a list of GitHub URLs and returns a mapping of URL to show approved count
+    """
+    if not payload.github_urls:
+        return {}
+    
+    #Clean the URLs the same way we do on insert
+    clean_urls = [url.lower().rstrip('/') for url in payload.github_urls]
+
+    conn = get_db()
+
+    #Use SQLite's parameter substitution for IN clause
+    placeholders = ",".join(["?"] * len(clean_urls))
+    query = f"""
+        SELECT github_url, COUNT(program) as count
+        FROM submissions
+        WHERE github_url IN ({placeholders})
+        GROUP BY github_url
+    """
+
+    rows = conn.execute(query, clean_urls).fetchall()
+    conn.close()
+
+    #Build the results map
+    counts = {}
+    for row in rows:
+        counts[row["github_url"]] = row["count"]
+
+    #Also ensure URLs with 0 history are included in the response
+    for url in clean_urls:
+        if url not in counts:
+            counts[url] = 0
+
+        return counts
+
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "Velocity backend is running"}

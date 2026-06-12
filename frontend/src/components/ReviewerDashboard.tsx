@@ -1104,6 +1104,10 @@ export default function ReviewerDashboard() {
             ) : filteredQueue.length > 0 ? (
               filteredQueue.map((p) => {
                 const repoName = p.github_url.split("/").pop() || "Unknown";
+                const historyCount = getHistoryCountForProject(p)
+                const hasHackatime = getHackatimePresence(p)
+                const recommendAction = getRecommendAction(p)
+
                 return (
                   <button
                     key={p.id}
@@ -1114,15 +1118,47 @@ export default function ReviewerDashboard() {
                         : "border-transparent bg-transparent hover:bg-white/60"
                     }`}
                   >
-                    <div className="mb-0.5 flex items-center justify-between">
-                      <p className="max-w-[120px] truncate font-mono text-xs font-bold text-[#17171d]">
-                        {repoName}
-                      </p>
+                    <div className="flex items-center gap-2">
                       <StatusDot status={p.status} />
+                      <span className="truncate font-black text-[#17171d]">
+                        {repoName}
+                      </span>
                     </div>
-                    <span className="rounded bg-[#e0e6ed] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wide text-[#17171d]">
+                    <div className="mt-1 pl-4 text-[10px] font-bold text-[#8492a6]">
                       {p.target_program}
-                    </span>
+                    </div>
+
+                    <div className="mt-2 pl-4 flex flex-wrap gap-1.5">
+                      {historyCount > 0 && (
+                        <span className="rounded-full bg-[#17171d] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
+                          History {historyCount}
+                        </span>
+                      )}
+
+                      {hasHackatime && (
+                        <span className="rounded-full bg-[#dff8f0] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#18795e]">
+                          Hackatime
+                        </span>
+                      )}
+
+                      {recommendAction === "review-carefully" && (
+                        <span className="rounded-full bg-[#fff1df] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#9a5800]">
+                          Review Carefully
+                        </span>
+                      )}
+
+                      {recommendAction === "needs-context" && (
+                        <span className="rounded-full bg-[#fef4f6] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#ec3750]">
+                          Needs Context
+                        </span>
+                      )}
+
+                      {recommendAction === "clean-look" && (
+                        <span className="rounded-full bg-[#dff8f0] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#18795e]">
+                          Clean Look
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })
