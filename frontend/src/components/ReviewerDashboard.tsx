@@ -196,6 +196,7 @@ export default function ReviewerDashboard() {
 
   const [previousSubmissions, setPreviousSubmissions] = useState<PreviousSubmission[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyCounts, setHistoryCounts] = useState<Record<string, number>>({});
 
   const [statusFilter, setStatusFilter] = useState("all");
   const [programFilter, setProgramFilter] = useState("all");
@@ -259,6 +260,10 @@ export default function ReviewerDashboard() {
 
       const data = await res.json();
       setQueue(Array.isArray(data) ? data : []);
+
+      if(Array.isArray(data)) {
+        fetchHistoryCounts(data);
+      }
 
       if (Array.isArray(data) && data.length > 0) {
         setActiveProject(data[0]);
@@ -328,8 +333,21 @@ export default function ReviewerDashboard() {
     ).sort();
   }, [queue]);
 
+  const getQueuePriority = (project: Submission) => {
+    const recommendedAction = getRecommendedAction(project);
+    const historyCount = getHistoryCountForProject(project);
+    const hasHackatime = getHackatimePresence(project);
+
+    if (project.status === "flagged") return 0;
+    if (recommendedAction === "review-carefully") return 1;
+    if (recommendedAction === "needs-context") return 2;
+    if (!hasHackatime) return 3;
+    if (historyCount > 0) return 4;
+    return 5;
+  };
+
   const filteredQueue = useMemo(() => {
-    let results = queue;
+    let results = [...queue];
 
     if(searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -359,6 +377,19 @@ export default function ReviewerDashboard() {
       results = results.filter((p) => getHistoryCountForProject(p) > 0)
     }
 
+    results.sort((a, b) => {
+      const priorityDiff = getQueuePriority(a) - getQueuePriority(b);
+      if (priorityDiff !== 0) return priorityDiff;
+
+      const historyDiff = 
+        getHistoryCountForProject(b) - getHistoryCountForProject(a);
+      if (historyDiff !== 0) return historyDiff;
+
+      const repoA = a.github_url.split("/").pop() || "";
+      const repoB = b.github_url.split("/").pop() || "";
+      return repoA.localeCompare(repoB);
+    });
+
     return results;
   }, [
     queue,
@@ -367,7 +398,8 @@ export default function ReviewerDashboard() {
     programFilter,
     onlyWithHistory,
     onlyWithHackatime,
-  ])
+    historyCounts,
+  ]);
 
   const getGithubHeaders = (): HeadersInit => {
     const headers: HeadersInit = {
@@ -492,6 +524,46 @@ export default function ReviewerDashboard() {
       setPreviousSubmissions([]);
     } finally {
       setHistoryLoading(false);
+    }
+  };
+
+  const fetchHistoryCounts = async (projects: Submission[]) => {
+    if (!backendUrl || !projects.length) {
+      setHistoryCounts({});
+      return;
+    }
+
+    try {
+      const githubUrls = Array.from(
+        new Set(
+          projects
+            .map((p) => p.github_url?.trim().toLowerCase().replace(/\+$/, ""))
+            .filter(Boolean)
+        )
+      );
+      
+      if (!githubUrls.length) {
+        setHistoryCounts({});
+        return;
+      }
+
+      const res = await fetch(`${backendUrl}/api/submissions/history_counts`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ github_urls: githubUrls }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch history counts");
+      }
+
+      const data = await res.json();
+      setHistoryCounts(data || {});
+    } catch (err) {
+      console.error("Failed to fetch history counts", err);
+      setHistoryCounts({});
     }
   };
 
@@ -685,12 +757,10 @@ export default function ReviewerDashboard() {
   };
 
   const getHistoryCountForProject = (project: Submission) => {
-    if (!project.github_url) return 0
-    const cleanUrl = project.github_url.toLowerCase().replace(/\+$/, "")
-    return queue.filter((item) => {
-      if(!item.github_url) return false
-      return item.github_url.toLowerCase().replace(/\+$/, "") === cleanUrl
-    }).length - 1
+    if (!project.github_url) return 0;
+
+    const cleanUrl = project.github_url.toLowerCase().replace(/\+$/, "");
+    return historyCounts[cleanUrl] ?? 0;
   }
 
   const getHackatimePresence = (project: Submission) => {
@@ -703,7 +773,7 @@ export default function ReviewerDashboard() {
     return hasHours || hasProjects
   }
 
-  const getRecommendAction = (project: Submission) => {
+  const getRecommendedAction = (project: Submission) => {
     const historyCount = getHistoryCountForProject(project)
     const hasHackatime = getHackatimePresence(project)
 
@@ -1082,7 +1152,7 @@ export default function ReviewerDashboard() {
           </div>
 
           <p className="mb-1 px-4 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
-            Queue ({filteredQueue.length})
+            Prioritized Queue ({filteredQueue.length})
           </p>
 
           {queueError && (
@@ -1106,7 +1176,7 @@ export default function ReviewerDashboard() {
                 const repoName = p.github_url.split("/").pop() || "Unknown";
                 const historyCount = getHistoryCountForProject(p)
                 const hasHackatime = getHackatimePresence(p)
-                const recommendAction = getRecommendAction(p)
+                const recommendedAction = getRecommendedAction(p)
 
                 return (
                   <button
@@ -1141,19 +1211,19 @@ export default function ReviewerDashboard() {
                         </span>
                       )}
 
-                      {recommendAction === "review-carefully" && (
+                      {recommendedAction === "review-carefully" && (
                         <span className="rounded-full bg-[#fff1df] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#9a5800]">
                           Review Carefully
                         </span>
                       )}
 
-                      {recommendAction === "needs-context" && (
+                      {recommendedAction === "needs-context" && (
                         <span className="rounded-full bg-[#fef4f6] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#ec3750]">
                           Needs Context
                         </span>
                       )}
 
-                      {recommendAction === "clean-look" && (
+                      {recommendedAction === "clean-look" && (
                         <span className="rounded-full bg-[#dff8f0] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#18795e]">
                           Clean Look
                         </span>

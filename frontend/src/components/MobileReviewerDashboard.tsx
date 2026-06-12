@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState } from "react";
 import {
     AlertTriangle,
     CheckCircle,
@@ -25,6 +26,12 @@ interface PreflightResponse {
     flags: string[];
 }
 
+interface PreviousSubmission {
+    github_url: string;
+    program: string;
+    approved_at: number | null;
+}
+
 interface Submission {
     id: string;
     github_url: string;
@@ -32,6 +39,17 @@ interface Submission {
     target_program: string;
     status: "pending" | "clean" | "flagged" | string;
     birth_year: number | null;
+    description?: string;
+    public_comment?: string;
+    private_comment?: string;
+    hackatime_hours?: number | string | null;
+    hackatime_projects?: string[] | string | null;
+}
+
+interface CopypastaItem {
+    label: string;
+    text: string;
+    type: "public" | "private";
 }
 
 interface RepoStats {
@@ -55,19 +73,36 @@ interface CopypastaItem {
 }
 
 interface MobileReviewerDashboardProps {
+    queue: Submission[];
     activeProject: Submission | null;
+    handleProjectSwitch: (project: Submission) => void;
+
     preflight: PreflightResponse | null;
     repoStats: RepoStats | null;
     statsLoading: boolean;
+
     iframeMode: "demo" | "github" | "stats";
     setIframeMode: (mode: "demo" | "github" | "stats") => void;
     fetchRepoStats: (githubUrl: string) => void;
+
     handleStatusUpdate: (newStatus: string) => void;
     scanLoading: boolean;
     runPreflight: () => void;
+
     copied: number | null;
     handleCopy: (idx: number, text: string) => void;
+    handleInsertCopypasta: (item: CopypastaItem) => void;
     copypastas: CopypastaItem[];
+    copypastaFeedback: string | null;
+
+    publicComment: string;
+    privateComment: string;
+    setPublicComment: React.Dispatch<React.SetStateAction<string>>;
+    setPrivateComment: React.Dispatch<React.SetStateAction<string>>;
+
+    previousSubmissions: PreviousSubmission[];
+    historyLoading: boolean;
+
     queueCount: number;
 }
 
@@ -99,7 +134,7 @@ function StatusIndicator({ status }: { status?: string}) {
     const copyToClipboard = async (text: string) => {
         try {
             if (navigator.clipboard && window.isSecureContext) {
-                await copyToClipboard(text);
+                await navigator.clipboard.writeText(text);
             } else {
                 const el = document.createElement("textarea");
                 el.value = text;
@@ -145,19 +180,28 @@ function StatusIndicator({ status }: { status?: string}) {
 }
 
 export default function MobileReviewerDashboard({
+    queue,
     activeProject,
+    handleProjectSwitch,
     preflight,
     repoStats,
     statsLoading,
     iframeMode,
-    setIframeMode,
     fetchRepoStats,
     handleStatusUpdate,
     scanLoading,
     runPreflight,
     copied,
     handleCopy,
-    copypastas,
+    handleInsertCopypasta,
+    copyastas,
+    copypastaFeedback,
+    publicComment,
+    privateComment,
+    setPublicComment,
+    setPrivateComment,
+    previousSubmissions,
+    historyLoading,
     queueCount,
 }: MobileReviewerDashboardProps) {
     const activeUrl = activeProject
