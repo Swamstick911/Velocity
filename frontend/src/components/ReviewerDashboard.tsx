@@ -786,25 +786,33 @@ export default function ReviewerDashboard() {
   return (
     <>
       <div className="block lg:hidden">
-  <MobileReviewerDashboard
-    activeProject={activeProject}
-    preflight={preflight}
-    repoStats={repoStats}
-    statsLoading={statsLoading}
-    iframeMode={iframeMode}
-    setIframeMode={setIframeMode}
-    fetchRepoStats={fetchRepoStats}
-    handleStatusUpdate={handleStatusUpdate}
-    scanLoading={scanLoading}
-    runPreflight={runPreflight}
-    copied={copied}
-    handleCopy={handleCopy}
-    copypastas={COPYPASTAS}
-    queueCount={queue.length}
-    handleProjectSwitch={handleProjectSwitch}
-    handleInsertCopypasta={handleInsertCopypasta}
-  />
-</div>
+        <MobileReviewerDashboard
+          queue={queue}
+          activeProject={activeProject}
+          handleProjectSwitch={handleProjectSwitch}
+          preflight={preflight}
+          repoStats={repoStats}
+          statsLoading={statsLoading}
+          iframeMode={iframeMode}
+          setIframeMode={setIframeMode}
+          fetchRepoStats={fetchRepoStats}
+          handleStatusUpdate={handleStatusUpdate}
+          scanLoading={scanLoading}
+          runPreflight={runPreflight}
+          copied={copied}
+          handleCopy={handleCopy}
+          handleInsertCopypasta={handleInsertCopypasta}
+          copypastas={COPYPASTAS}
+          copypastaFeedback={copypastaFeedback}
+          publicComment={publicComment}
+          privateComment={privateComment}
+          setPublicComment={setPublicComment}
+          setPrivateComment={setPrivateComment}
+          previousSubmissions={previousSubmissions}
+          historyLoading={historyLoading}
+          queueCount={queue.length}
+        />
+      </div>
     <div 
       className="hidden lg:flex relative h-screen w-full overflow-hidden"
       style={{
