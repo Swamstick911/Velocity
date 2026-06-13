@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbProvider } from "@/lib/db";
 
 export async function GET(request: Request) {
     try {
@@ -7,76 +8,21 @@ export async function GET(request: Request) {
         const baseId = searchParams.get("airtableBaseId");
         const table = searchParams.get("airtableTableName");
 
-        if(!token || !baseId || !table) {
+        // If running in postgres mode, we don't strictly require these dynamic credentials
+        const isPostgres = process.env.DATABASE_TYPE === "postgres";
+
+        if (!isPostgres && (!token || !baseId || !table)) {
             return NextResponse.json(
                 { error: "Missing Airtable credentials in request" },
                 { status: 400 }
             );
         }
 
-        const response = await fetch(
-            `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(table)}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-                cache: "no-store",
-            }
-        );
-
-        const data = await response.json();
-
-        if(!response.ok) {
-            throw new Error(data?.error?.message || "Failed to fetch data from Airtable");
-        }
-
-        const submissions = (data.records || []).map((record: any) => ({
-            id: record.id,
-            github_url:
-                record.fields["GitHub URL"] ||
-                record.fields["github_url"] ||
-                "",
-            playable_url:
-                record.fields["Playable URL"] ||
-                record.fields["playable_url"] ||
-                "",
-            target_program:
-                record.fields["Target Program"] ||
-                record.fields["target_program"] ||
-                "Unknown",
-            status:
-                record.fields["Status"] ||
-                record.fields["status"] ||
-                "pending",
-            birth_year:
-                record.fields["Birth Year"] ||
-                record.fields["birth_year"] ||
-                null,
-            description:
-                record.fields["Description"] ||
-                record.fields["description"] ||
-                record.fields["Project Description"] ||
-                record.fields["project_description"] ||
-                "",
-            public_comment:
-                record.fields["Public Comment"] ||
-                record.fields["public_comment"] ||
-                "",
-            private_comment:
-                record.fields["Private Comment"] ||
-                record.fields["private_comment"] ||
-                "",
-            hackatime_hours:
-                record.fields["Hackatime Hours"] ??
-                record.fields["hackatime_hours"] ??
-                record.fields["Hours"] ??
-                null,
-            hackatime_projects:
-                record.fields["Hackatime Projects"] ||
-                record.fields["hackatime_projects"] ||
-                record.fields["Project Names"] ||
-                [],
-        }));
+        const submissions = await dbProvider.getSubmissionsQueue({
+            airtableToken: token || undefined,
+            airtableBaseId: baseId || undefined,
+            airtableTableName: table || undefined
+        });
 
         return NextResponse.json(submissions);
     } catch (error: any) {
@@ -100,44 +46,36 @@ export async function POST(request: Request) {
             airtableTableName,
         } = body;
 
-        if(!id || !status || !airtableToken || !airtableBaseId || !airtableTableName) {
+        const isPostgres = process.env.DATABASE_TYPE === "postgres";
+
+        if (!id || !status) {
+            return NextResponse.json({ error: "Missing id or status" }, { status: 400 });
+        }
+
+        if (!isPostgres && (!airtableToken || !airtableBaseId || !airtableTableName)) {
             return NextResponse.json(
-                { error: "Missing required fields or credentials" },
+                { error: "Missing required credentials for Airtable engine storage" },
                 { status: 400 }
             );
         }
 
-        const fields: Record<string, any> = {
-            Status: status,
-        };
-
-        if (typeof publicComment === "string") {
-            fields["Public Comment"] = publicComment;
-        }
-
-        if (typeof privateComment === "string") {
-            fields["Private Comment"] = publicComment;
-        }
-
-        const response = await fetch(
-            `https://api.airtable.com/v0/${airtableBaseId}/${encodeURIComponent(airtableTableName)}/${id}`,
+        const success = await dbProvider.updateSubmissionStatus(
+            id,
+            status,
+            publicComment || "",
+            privateComment || "",
             {
-                method: "PATCH",
-                headers: {
-                    Authorization: `Bearer ${airtableToken}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({ fields }),
+                airtableToken,
+                airtableBaseId,
+                airtableTableName
             }
         );
 
-        const data = await response.json();
-
-        if(!response.ok) {
-            throw new Error(data?.error?.message || "Failed to update Airtable");
+        if (!success) {
+            throw new Error("The target database provider rejected or failed the write operation.");
         }
 
-        return NextResponse.json(data);
+        return NextResponse.json({ success: true, status });
     } catch (error: any) {
         return NextResponse.json(
             { error: error.message || "Internal server error" },
