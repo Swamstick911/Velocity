@@ -35,7 +35,7 @@ interface PreflightResponse {
   flags: string[];
 }
 
-interface Submission {
+export interface Submission {
   id: string;
   github_url: string;
   playable_url: string;
@@ -72,7 +72,7 @@ interface PreviousSubmission {
 
 type CopypastaType = "public" | "private";
 
-interface Copypasta{
+export interface Copypasta{
   label: string;
   type: CopypastaType;
   text: string;
@@ -786,23 +786,25 @@ export default function ReviewerDashboard() {
   return (
     <>
       <div className="block lg:hidden">
-        <MobileReviewerDashboard
-          activeProject={activeProject}
-          preflight={preflight}
-          repoStats={repoStats}
-          statsLoading={statsLoading}
-          iframeMode={iframeMode}
-          setIframeMode={setIframeMode}
-          fetchRepoStats={fetchRepoStats}
-          handleStatusUpdate={handleStatusUpdate}
-          scanLoading={scanLoading}
-          runPreflight={runPreflight}
-          copied={copied}
-          handleCopy={handleCopy}
-          copypastas={COPYPASTAS}
-          queueCount={queue.length}
-        />
-      </div>
+  <MobileReviewerDashboard
+    activeProject={activeProject}
+    preflight={preflight}
+    repoStats={repoStats}
+    statsLoading={statsLoading}
+    iframeMode={iframeMode}
+    setIframeMode={setIframeMode}
+    fetchRepoStats={fetchRepoStats}
+    handleStatusUpdate={handleStatusUpdate}
+    scanLoading={scanLoading}
+    runPreflight={runPreflight}
+    copied={copied}
+    handleCopy={handleCopy}
+    copypastas={COPYPASTAS}
+    queueCount={queue.length}
+    handleProjectSwitch={handleProjectSwitch}
+    handleInsertCopypasta={handleInsertCopypasta}
+  />
+</div>
     <div 
       className="hidden lg:flex relative h-screen w-full overflow-hidden"
       style={{

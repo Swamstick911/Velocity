@@ -1,16 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import {
     AlertTriangle,
     CheckCircle,
-    Clock,
     Code,
-    Copy,
-    ExternalLink,
     Search,
     XCircle,
 } from "lucide-react";
+import { Copypasta, Submission } from "./ReviewerDashboard";
 
 interface CheckResult {
     passed: boolean;
@@ -32,26 +30,6 @@ interface PreviousSubmission {
     approved_at: number | null;
 }
 
-interface Submission {
-    id: string;
-    github_url: string;
-    playable_url: string;
-    target_program: string;
-    status: "pending" | "clean" | "flagged" | string;
-    birth_year: number | null;
-    description?: string;
-    public_comment?: string;
-    private_comment?: string;
-    hackatime_hours?: number | string | null;
-    hackatime_projects?: string[] | string | null;
-}
-
-interface CopypastaItem {
-    label: string;
-    text: string;
-    type: "public" | "private";
-}
-
 interface RepoStats {
     name: string;
     description: string | null;
@@ -65,11 +43,6 @@ interface RepoStats {
     contributors: any[];
     maxAdditions: number;
     aiSlopFlag: boolean;
-}
-
-interface CopypastaItem {
-    label: string;
-    text: string;
 }
 
 interface MobileReviewerDashboardProps {
@@ -89,10 +62,10 @@ interface MobileReviewerDashboardProps {
     scanLoading: boolean;
     runPreflight: () => void;
 
-    copied: number | null;
-    handleCopy: (idx: number, text: string) => void;
-    handleInsertCopypasta: (item: CopypastaItem) => void;
-    copypastas: CopypastaItem[];
+    copied: number | null; 
+    handleCopy: (idx: number, text: string) => void; 
+    handleInsertCopypasta: (copypasta: Copypasta) => void;
+    copypastas: Copypasta[];
     copypastaFeedback: string | null;
 
     publicComment: string;
@@ -131,25 +104,6 @@ const MobileCheckRow = ({
 function StatusIndicator({ status }: { status?: string}) {
     const normalized = (status || "pending").toLowerCase();
 
-    const copyToClipboard = async (text: string) => {
-        try {
-            if (navigator.clipboard && window.isSecureContext) {
-                await navigator.clipboard.writeText(text);
-            } else {
-                const el = document.createElement("textarea");
-                el.value = text;
-                el.style.position = "fixed";
-                el.style.opacity = "0";
-                document.body.appendChild(el);
-                el.select();
-                document.execCommand("copy");
-                document.body.removeChild(el);
-            }
-        } catch (err) {
-            console.error("Copy failed:", err);
-        }
-    };
-
     return (
         <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
@@ -163,8 +117,8 @@ function StatusIndicator({ status }: { status?: string}) {
                     }`}/>
                 <span 
                     className={`h-2.5 w-2.5 rounded-full ${
-                        normalized === "clean" || normalized === "approved"
-                            ? "bg-[#19c37d]"
+                        normalized === "clean" || normalized === "approved" || normalized === "rejected"
+                            ? normalized === "rejected" ? "bg-[#ec3750]" : "bg-[#19c37d]"
                             : "bg-[#d1d5db]"
                     }`}/>
             </div>
@@ -173,6 +127,8 @@ function StatusIndicator({ status }: { status?: string}) {
                         ? "Flagged"
                         : normalized === "clean" || normalized === "approved"
                         ? "Clean"
+                        : normalized === "rejected"
+                        ? "Rejected"
                         : "Pending"}
             </span>
         </div>
@@ -187,6 +143,7 @@ export default function MobileReviewerDashboard({
     repoStats,
     statsLoading,
     iframeMode,
+    setIframeMode,
     fetchRepoStats,
     handleStatusUpdate,
     scanLoading,
@@ -194,7 +151,7 @@ export default function MobileReviewerDashboard({
     copied,
     handleCopy,
     handleInsertCopypasta,
-    copyastas,
+    copypastas,
     copypastaFeedback,
     publicComment,
     privateComment,
@@ -210,11 +167,11 @@ export default function MobileReviewerDashboard({
             : activeProject.github_url.replace(
                 "https://github.com/",
                 "https://github1s.com/"
-            )
+              )
         : "";
 
     return (
-        <div className="flex h-screen flex-col bg-[#ec3750] text-[#17171d] lg:hidden">
+        <div className="flex h-screen flex-col bg-[#ec3750] text-[#17171d] lg:hidden w-full">
             <header className="shrink-0 px-3 pt-3">
                 <div className="rounded-[28px] border-2 border-[#17171d] bg-[#f7c9d1] p-3 shadow-[0_4px_0_#17171d]">
                     <div className="flex items-start justify-between gap-3">
@@ -238,7 +195,24 @@ export default function MobileReviewerDashboard({
                 </div>
             </header>
 
-            <main className="flex-1 overflow-y-auto px-3 pb-28 pt-3">
+            {/* Horizontal Active Project Queue Switcher */}
+            <div className="flex gap-2 overflow-x-auto px-3 pt-2 scrollbar-hide shrink-0">
+                {queue.map((p) => (
+                    <button
+                        key={p.id}
+                        onClick={() => handleProjectSwitch(p)}
+                        className={`px-3 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap border-2 border-[#17171d] ${
+                            p.id === activeProject?.id
+                                ? "bg-[#338eda] text-white shadow-[0_2px_0_#17171d]"
+                                : "bg-white/80 text-[#17171d]"
+                        }`}
+                    >
+                        {p.github_url.split("/").pop() || "Project"}
+                    </button>
+                ))}
+            </div>
+
+            <main className="flex-1 overflow-y-auto px-3 pb-32 pt-3 space-y-4">
                 <div className="rounded-[30px] border-[3px] border-[#338eda] bg-[#f7c9d1] p-3 shadow-[0_6px_0_#338eda]">
                     <div className="rounded-[22px] bg-[#b95de8] p-3 text-white shadow-sm">
                         <div className="flex items-start justify-between gap-3">
@@ -270,7 +244,7 @@ export default function MobileReviewerDashboard({
                                 User Dossier
                             </p>
                             <div className="mt-2 space-y-1 text-[11px]">
-                                <p className="truncate">
+                                <p className="truncate font-mono">
                                     {activeProject?.github_url || "[Github URL]"}
                                 </p>
                                 <p>{activeProject?.target_program || "[YSWS Participated]"}</p>
@@ -291,12 +265,14 @@ export default function MobileReviewerDashboard({
                                     <div className="rounded-lg bg-white/40 px-2 py-1 text-[11px] font-medium">
                                         README {preflight.readme_check.passed ? "✓" : "X"}
                                     </div>
+                                    <div className="rounded-lg bg-white/40 px-2 py-1 text-[11px] font-medium">
+                                        Demo Link {preflight.playable_url_check.passed ? "✓" : "X"}
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="mt-2 space-y-1.5 text-[11px]">
-                                    <p>README</p>
-                                    <p>Playable Link</p>
-                                    <p>Age</p>
+                                <div className="mt-2 space-y-1.5 text-[11px] opacity-70">
+                                    <p>README Pending</p>
+                                    <p>Playable Link Pending</p>
                                 </div>
                             )}
                         </div>
@@ -305,7 +281,7 @@ export default function MobileReviewerDashboard({
                     <div className="mt-3 flex flex-wrap gap-2">
                         <button
                             onClick={() => setIframeMode("demo")}
-                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm ${
+                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm border border-black/10 ${
                                 iframeMode === "demo"
                                     ? "bg-[#ec3750] text-white"
                                     : "bg-white/70 text-[#17171d]"
@@ -314,7 +290,7 @@ export default function MobileReviewerDashboard({
                         </button>
                         <button
                             onClick={() => setIframeMode("github")}
-                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm ${
+                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm border border-black/10 ${
                                 iframeMode === "github"
                                     ? "bg-[#ec3750] text-white"
                                     : "bg-white/70 text-[#17171d]"
@@ -328,7 +304,7 @@ export default function MobileReviewerDashboard({
                                     fetchRepoStats(activeProject.github_url);
                                 }
                             }}
-                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm ${
+                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm border border-black/10 ${
                                 iframeMode === "stats"
                                     ? "bg-[#ec3750] text-white"
                                     : "bg-white/70 text-[#17171d]"
@@ -341,10 +317,10 @@ export default function MobileReviewerDashboard({
                             disabled={!activeProject || scanLoading}
                             className="ml-auto rounded-lg bg-[#17171d] px-3 py-1.5 text-[11px] font-black text-white shadow-sm disabled:opacity-50">
                                 {scanLoading ? "Scanning..." : "Run Scan"}
-                            </button>
+                        </button>
                     </div>
                     
-                    <div className="mt-3 overflow-hidden rounded-[28px] bg-[#b999a1]">
+                    <div className="mt-3 overflow-hidden rounded-[28px] bg-[#b999a1] border-2 border-black/10">
                         {!activeProject ? (
                             <div className="flex h-[320px] items-center justify-center px-4 text-center text-sm text-white/80">
                                 No active project selected
@@ -411,71 +387,101 @@ export default function MobileReviewerDashboard({
                                 )}
                             </div>
                         )}
+                    </div>
+
+                    {preflight && (
+                        <div className="mt-3 space-y-2">
+                            <MobileCheckRow result={preflight.readme_check} label="README"/>
+                            <MobileCheckRow 
+                                result={preflight.playable_url_check}
+                                label="Playable URL" />
+                            <MobileCheckRow result={preflight.birth_year_check} label="Age"/>
+                            <MobileCheckRow
+                                result={preflight.anti_fraud_check}
+                                label="Anti Fraud"/>
                         </div>
+                    )}
 
-                        {preflight && (
-                            <div className="mt-3 space-y-2">
-                                <MobileCheckRow result={preflight.readme_check} label="README"/>
-                                <MobileCheckRow 
-                                    result={preflight.playable_url_check}
-                                    label="Playable URL" />
-                                <MobileCheckRow result={preflight.birth_year_check} label="Age"/>
-                                <MobileCheckRow
-                                    result={preflight.anti_fraud_check}
-                                    label="Anti Fraud"/>
-                            </div>
-                        )}
-
-                        {preflight && preflight.flags.length > 0 && (
-                            <div className="mt-3 rounded-[18px] border border-[#ffb703] bg-[#fff1bf] p-3">
-                                <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#9a6700]">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    Fraud Warning
-                                </p>
-                                <div className="mt-2 space-y-1">
-                                    {preflight.flags.map((flag, idx) => (
-                                        <p key={idx} className="text-[11px] leading-snug text-[#17171d]">
-                                            {flag}
-                                        </p>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        <div className="mt-4 rounded-[18px] bg-[#3e0000] p-3 text-white shadow-sm">
-                            <div className="flex items-center justify-between gap-2">
-                                <p className="text-[10px] font-black uppercase tracking-wider text-white/80">
-                                    Copypasta Palette
-                                </p>
-                                <Search className="h-3.5 w-3.5 text-white/70" />
-                            </div>
-
-                            <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
-                                {copypastas.map((item, idx) => (
-                                    <button
-                                        key={idx}
-                                        onClick={() => handleCopy(idx, item.text)}
-                                        className="shrink-0 rounded-md bg-white px-2.5 py-1.5 text-[10px] font-black text-[#17171d] shadow-sm">
-                                            {copied === idx ? "Copied!" : item.label}
-                                    </button>
+                    {preflight && preflight.flags.length > 0 && (
+                        <div className="mt-3 rounded-[18px] border border-[#ffb703] bg-[#fff1bf] p-3">
+                            <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#9a6700]">
+                                <AlertTriangle className="h-3 w-3" />
+                                Fraud Warning
+                            </p>
+                            <div className="mt-2 space-y-1">
+                                {preflight.flags.map((flag, idx) => (
+                                    <p key={idx} className="text-[11px] leading-snug text-[#17171d]">
+                                        {flag}
+                                    </p>
                                 ))}
                             </div>
                         </div>
+                    )}
+
+                    {/* Custom Comments Form Section */}
+                    <div className="mt-4 rounded-[24px] border-2 border-[#17171d] bg-white p-3 space-y-3 shadow-[0_4px_0_#17171d]">
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Public Feedback</label>
+                            <textarea
+                                value={publicComment}
+                                onChange={(e) => setPublicComment(e.target.value)}
+                                className="w-full mt-1 rounded-xl border-2 border-[#17171d] p-2 text-xs bg-slate-50 font-mono"
+                                rows={2}
+                                placeholder="Sent directly to student..."
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Private Reviewer Logs</label>
+                            <textarea
+                                value={privateComment}
+                                onChange={(e) => setPrivateComment(e.target.value)}
+                                className="w-full mt-1 rounded-xl border-2 border-[#17171d] p-2 text-xs bg-slate-50 font-mono"
+                                rows={1}
+                                placeholder="Internal logs..."
+                            />
+                        </div>
+                    </div>
+
+                    {/* Copypasta Actions Palette */}
+                    <div className="mt-4 rounded-[18px] bg-[#3e0000] p-3 text-white shadow-sm">
+                        <div className="flex items-center justify-between gap-2">
+                            <p className="text-[10px] font-black uppercase tracking-wider text-white/80">
+                                Copypasta Palette
+                            </p>
+                            <Search className="h-3.5 w-3.5 text-white/70" />
+                        </div>
+
+                        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                            {copypastas.map((item, idx) => (
+                                <button
+                                    key={idx}
+                                    type="button"
+                                    onClick={() => {
+                                        handleInsertCopypasta(item);
+                                        handleCopy(idx, item.text);
+                                    }}
+                                    className="shrink-0 rounded-md bg-white px-2.5 py-1.5 text-[10px] font-black text-[#17171d] shadow-sm transition active:scale-95"
+                                >
+                                    {copied === idx ? "Injected!" : item.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
             </main>
 
-            <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-black/10 bg-[#f7c9d1]/95 px-3 backdrop-blur-sm lg:hidden">
+            <footer className="fixed bottom-0 left-0 right-0 z-30 border-t-4 border-black bg-[#f7c9d1] p-3 shadow-2xl">
                 <div className="mx-auto flex max-w-md gap-3">
                     <button
                         onClick={() => handleStatusUpdate("Approved")}
                         disabled={!activeProject}
-                        className="flex-1 rounded-2xl bg-[#19f319] py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#138913] transition active:translate-y-1 active:shadow-none disabled:opacity-50">
+                        className="flex-1 rounded-2xl border-2 border-black bg-[#19f319] py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none disabled:opacity-50">
                             Accept
                     </button>
                     <button
                         onClick={() => handleStatusUpdate("Rejected")}
                         disabled={!activeProject}
-                        className="flex-1 rounded-2xl bg-[#ff3b30] py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#b91c1c] transition active:translate-y-1 active:shadow-none disabled:opacity-50">
+                        className="flex-1 rounded-2xl border-2 border-black bg-[#ff3b30] py-3 text-sm font-black text-white shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none disabled:opacity-50">
                             Reject
                     </button>
                 </div>
