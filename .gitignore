@@ -10,3 +10,6 @@ venv/
 __pycache__/
 *.pyc
 *.pyo
+
+#node modules
+node_modules/
