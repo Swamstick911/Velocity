@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "cp ../backend/prisma/schema.prisma ./schema.prisma && npx prisma generate --schema=./schema.prisma && next build",
     "start": "next start",
     "lint": "eslint"
   },
