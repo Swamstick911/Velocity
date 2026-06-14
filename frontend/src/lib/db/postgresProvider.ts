@@ -8,7 +8,7 @@ export class PostgresProvider implements IDatabaseProvider {
             orderBy: { createdAt: "asc" }
         });
 
-        return records.map(record => ({
+        return records.map((record: any) => ({
             id: record.id,
             github_url: record.githubUrl,
             playable_url: record.playable_url,
