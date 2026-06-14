@@ -18,11 +18,7 @@ export async function GET(request: Request) {
             );
         }
 
-        const submissions = await dbProvider.getSubmissionsQueue({
-            airtableToken: token || undefined,
-            airtableBaseId: baseId || undefined,
-            airtableTableName: table || undefined
-        });
+        const submissions = await dbProvider.getSubmissionsQueue();
 
         return NextResponse.json(submissions);
     } catch (error: any) {
