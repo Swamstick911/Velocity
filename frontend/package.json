@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "postinstall": "npx prisma generate --schema=../backend/prisma/schema.prisma"
+    "postinstall": "ln -sf ../backend/prisma.config.ts ./prisma.config.ts && npx prisma generate --schema=../backend/prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^7.8.0",
