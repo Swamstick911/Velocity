@@ -1,16 +1,22 @@
 {
-  "dependencies": {
-    "@prisma/client": "^6.19.3",
-    "next": "your-current-version"
-  },
-  "devDependencies": {
-    "prisma": "^6.19.3"
-  },
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "npx prisma generate --schema=../backend/prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.3",
+    "next": "16.2.4",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.19.3",
+    "typescript": "^5.0.0"
   }
 }
