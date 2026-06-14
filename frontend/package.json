@@ -1,10 +1,10 @@
 {
   "dependencies": {
-    "next": "your-current-version",
-    "@prisma/client": "^6.4.0"
+    "@prisma/client": "^6.19.3",
+    "next": "your-current-version"
   },
   "devDependencies": {
-    "prisma": "^6.4.0"
+    "prisma": "^6.19.3"
   },
   "scripts": {
     "dev": "next dev",
