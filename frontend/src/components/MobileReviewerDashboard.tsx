@@ -1,14 +1,21 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
     AlertTriangle,
     CheckCircle,
+    Clock,
     Code,
+    Copy,
+    ExternalLink,
+    FileText,
     Search,
-    XCircle,
+    XCircle
 } from "lucide-react";
-import { Copypasta, Submission } from "./ReviewerDashboard";
+import type {
+    Copypasta,
+    Submission,
+} from "./ReviewerDashboard";
 
 interface CheckResult {
     passed: boolean;
@@ -16,18 +23,12 @@ interface CheckResult {
 }
 
 interface PreflightResponse {
-    overall_passed: boolean;
-    birth_year_check: CheckResult;
-    readme_check: CheckResult;
-    playable_url_check: CheckResult;
-    anti_fraud_check: CheckResult;
+    overallpassed: boolean;
+    birthyearcheck: CheckResult;
+    readmecheck: CheckResult;
+    playableurlcheck: CheckResult;
+    antifraudcheck: CheckResult;
     flags: string[];
-}
-
-interface PreviousSubmission {
-    github_url: string;
-    program: string;
-    approved_at: number | null;
 }
 
 interface RepoStats {
@@ -45,94 +46,90 @@ interface RepoStats {
     aiSlopFlag: boolean;
 }
 
+interface PreviousSubmission {
+    githuburl: string;
+    program: string;
+    approvedat: number | null;
+}
+
+type IframeMode = "demo" | "github" | "stats";
+type MobileTab = "queue" | "review" | "context";
+
 interface MobileReviewerDashboardProps {
     queue: Submission[];
     activeProject: Submission | null;
     handleProjectSwitch: (project: Submission) => void;
-
     preflight: PreflightResponse | null;
     repoStats: RepoStats | null;
     statsLoading: boolean;
-
-    iframeMode: "demo" | "github" | "stats";
-    setIframeMode: (mode: "demo" | "github" | "stats") => void;
+    iframeMode: IframeMode;
+    setIframeMode: (mode: IframeMode) => void;
     fetchRepoStats: (githubUrl: string) => void;
-
-    handleStatusUpdate: (newStatus: string) => void;
+    handleStatusUpdate: (status: string) => void;
     scanLoading: boolean;
     runPreflight: () => void;
-
-    copied: number | null; 
-    handleCopy: (idx: number, text: string) => void; 
+    copied: number | null;
+    handleCopy: (idx: number, text: string) => void;
     handleInsertCopypasta: (copypasta: Copypasta) => void;
     copypastas: Copypasta[];
     copypastaFeedback: string | null;
-
     publicComment: string;
     privateComment: string;
     setPublicComment: React.Dispatch<React.SetStateAction<string>>;
     setPrivateComment: React.Dispatch<React.SetStateAction<string>>;
-
     previousSubmissions: PreviousSubmission[];
     historyLoading: boolean;
-
     queueCount: number;
 }
 
-const MobileCheckRow = ({
-    result,
+function StatusDot({ status }: { status: Submission["status"] }) {
+    const color =
+        status === "clean"
+            ? "bg-[#33d6a6]"
+            : status === "flagged"
+            ? "bg-[#ff8c37]"
+            : "bg-[#8492a6]";
+
+    return <span className={`inline-block h-2.5 w-2.5 rounded-full ${color}`} />;
+}
+
+function CheckRow({
     label,
+    result,
 }: {
-    result: CheckResult;
     label: string;
-}) => (
-    <div className="flex items-start gap-2 rounded-xl bg-white/50 px-2.5 py-2">
-        {result.passed ? (
-            <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#19a974]" />
-        ) : (
-            <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#ec3750]" />
-        )}
-        <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-wider text-[#17171d]">
-                {label}
-            </p>
-            <p className="text-[11px] leading-snug text-[#5f6c7b]">{result.detail}</p>
-        </div>
-    </div>
-);
-
-function StatusIndicator({ status }: { status?: string}) {
-    const normalized = (status || "pending").toLowerCase();
-
+    result: CheckResult;
+}) {
     return (
-        <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1">
-                <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                        normalized === "pending" ? "bg-[#8492a6]" : "bg-[#d1d5db]"
-                    }`}/>
-                <span 
-                    className={`h-2.5 w-2.5 rounded-full ${
-                        normalized === "flagged" ? "bg-[#ffb703]" : "bg-[#d1d5db]"
-                    }`}/>
-                <span 
-                    className={`h-2.5 w-2.5 rounded-full ${
-                        normalized === "clean" || normalized === "approved" || normalized === "rejected"
-                            ? normalized === "rejected" ? "bg-[#ec3750]" : "bg-[#19c37d]"
-                            : "bg-[#d1d5db]"
-                    }`}/>
+        <div className="flex items-start gap-2 rounded-xl bg-[#252429] px-3 py-2">
+            {result.passed ? (
+                <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#33d6a6]" />
+            ) : (
+                <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#ec3750]"/>
+            )}
+            <div>
+                <p className="text-[11px] font-black uppercase tracking-wider text-white">
+                    {label}
+                </p>
+                <p className="mt-0.5 text-xs leading-relaxed text-[#a5b0c2]">
+                    {result.detail}
+                </p>
             </div>
-            <span className="text-[10px] font-black uppercase tracking-wider text-white/90">
-                    {normalized === "flagged"
-                        ? "Flagged"
-                        : normalized === "clean" || normalized === "approved"
-                        ? "Clean"
-                        : normalized === "rejected"
-                        ? "Rejected"
-                        : "Pending"}
-            </span>
         </div>
     );
+}
+
+function normalizeHackatimeProjects(
+    value: string[] | string | null | undefined
+): string[] {
+    if (Array.isArray(value)) return value.filter(Boolean);
+    if(typeof value === "string") {
+        return value
+            .split(",")
+            .map((item) => item.trim())
+            .filter(Boolean);
+    }
+    return [];
 }
 
 export default function MobileReviewerDashboard({
@@ -161,331 +158,80 @@ export default function MobileReviewerDashboard({
     historyLoading,
     queueCount,
 }: MobileReviewerDashboardProps) {
+    const [activeTab, setActiveTab] = useState<MobileTab>("queue");
+
+    useEffect(() => {
+        if(activeProject) {
+            setActiveTab("review");
+        }
+    }, [activeProject]);
+
     const activeUrl = activeProject
         ? iframeMode === "demo"
             ? activeProject.playable_url
-            : activeProject.github_url.replace(
-                "https://github.com/",
-                "https://github1s.com/"
-              )
+            : activeProject.github_url.replace("https://github.com", "https://github1s.com")
         : "";
 
-    return (
-        <div className="flex h-screen flex-col bg-[#ec3750] text-[#17171d] lg:hidden w-full">
-            <header className="shrink-0 px-3 pt-3">
-                <div className="rounded-[28px] border-2 border-[#17171d] bg-[#f7c9d1] p-3 shadow-[0_4px_0_#17171d]">
-                    <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2">
-                            <img
-                                src="https://assets.hackclub.com/icon-rounded.svg"
-                                alt="Hack Club Logo"
-                                className="h-8 w-8" />
-                            <div>
-                                <p className="text-xs font-semibold text-[#5f6c7b]">Welcome to Velocity!</p>
-                                <p className="text-[10px] font-black uppercase tracking-[0.18rem] text-[#8492a6]">
-                                    Mobile Reviewer
-                                </p>
-                            </div>
-                        </div>
+    const repoName = useMemo(() => {
+        if (!activeProject?.github_url) return "No active project";
+        return activeProject.github_url.split("/").pop() || "Unknown repo";
+    }, [activeProject]);
 
-                        <div className="rounded-full bg-[#338eda] px-3 py-1 text-[10px] font-black text-white shadow-sm">
-                            {queueCount} in queue
-                        </div>
-                    </div>
-                </div>
-            </header>
-
-            {/* Horizontal Active Project Queue Switcher */}
-            <div className="flex gap-2 overflow-x-auto px-3 pt-2 scrollbar-hide shrink-0">
-                {queue.map((p) => (
-                    <button
-                        key={p.id}
-                        onClick={() => handleProjectSwitch(p)}
-                        className={`px-3 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap border-2 border-[#17171d] ${
-                            p.id === activeProject?.id
-                                ? "bg-[#338eda] text-white shadow-[0_2px_0_#17171d]"
-                                : "bg-white/80 text-[#17171d]"
-                        }`}
-                    >
-                        {p.github_url.split("/").pop() || "Project"}
-                    </button>
-                ))}
-            </div>
-
-            <main className="flex-1 overflow-y-auto px-3 pb-32 pt-3 space-y-4">
-                <div className="rounded-[30px] border-[3px] border-[#338eda] bg-[#f7c9d1] p-3 shadow-[0_6px_0_#338eda]">
-                    <div className="rounded-[22px] bg-[#b95de8] p-3 text-white shadow-sm">
-                        <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                                <p className="flex items-center gap-1 text-[11px] font-black uppercase tracking-wide text-white/80">
-                                    <Code className="h-3 w-3"/>
-                                    Project
-                                </p>
-                                <p className="mt-1 truncate text-sm font-black">
-                                    {activeProject?.github_url.split("/").pop() || "[Repo Name]"}
-                                </p>
-                                <p className="mt-1 text-[10px] text-white/85">
-                                    {activeProject?.target_program || "[Target YSWS]"}
-                                </p>
-                            </div>
-
-                            <div className="shrink-0 text-right">
-                                <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/70">
-                                    Status
-                                </p>
-                                <StatusIndicator status={activeProject?.status} />
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                        <div className="rounded-[18px] bg-[#55a8f6] p-3 text-[#17171d] shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider">
-                                User Dossier
-                            </p>
-                            <div className="mt-2 space-y-1 text-[11px]">
-                                <p className="truncate font-mono">
-                                    {activeProject?.github_url || "[Github URL]"}
-                                </p>
-                                <p>{activeProject?.target_program || "[YSWS Participated]"}</p>
-                                <p>
-                                    Age:{" "}
-                                    {activeProject?.birth_year ? 2026 - activeProject.birth_year : "Unknown"}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="rounded-[18px] bg-[#55a8f6] p-3 text-[#17171d] shadow-sm">
-                            <p className="text-[10px] font-black uppercase tracking-wider">
-                                Preflight Check
-                            </p>
-
-                            {preflight ? (
-                                <div className="mt-2 space-y-1.5">
-                                    <div className="rounded-lg bg-white/40 px-2 py-1 text-[11px] font-medium">
-                                        README {preflight.readme_check.passed ? "✓" : "X"}
-                                    </div>
-                                    <div className="rounded-lg bg-white/40 px-2 py-1 text-[11px] font-medium">
-                                        Demo Link {preflight.playable_url_check.passed ? "✓" : "X"}
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="mt-2 space-y-1.5 text-[11px] opacity-70">
-                                    <p>README Pending</p>
-                                    <p>Playable Link Pending</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                        <button
-                            onClick={() => setIframeMode("demo")}
-                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm border border-black/10 ${
-                                iframeMode === "demo"
-                                    ? "bg-[#ec3750] text-white"
-                                    : "bg-white/70 text-[#17171d]"
-                            }`}>
-                                Live
-                        </button>
-                        <button
-                            onClick={() => setIframeMode("github")}
-                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm border border-black/10 ${
-                                iframeMode === "github"
-                                    ? "bg-[#ec3750] text-white"
-                                    : "bg-white/70 text-[#17171d]"
-                            }`}>
-                                Repo
-                        </button>
-                        <button
-                            onClick={() => {
-                                setIframeMode("stats");
-                                if (activeProject && !repoStats) {
-                                    fetchRepoStats(activeProject.github_url);
-                                }
-                            }}
-                            className={`rounded-lg px-3 py-1.5 text-[11px] font-black shadow-sm border border-black/10 ${
-                                iframeMode === "stats"
-                                    ? "bg-[#ec3750] text-white"
-                                    : "bg-white/70 text-[#17171d]"
-                            }`}>
-                                Stats
-                        </button>
-
-                        <button
-                            onClick={runPreflight}
-                            disabled={!activeProject || scanLoading}
-                            className="ml-auto rounded-lg bg-[#17171d] px-3 py-1.5 text-[11px] font-black text-white shadow-sm disabled:opacity-50">
-                                {scanLoading ? "Scanning..." : "Run Scan"}
-                        </button>
-                    </div>
-                    
-                    <div className="mt-3 overflow-hidden rounded-[28px] bg-[#b999a1] border-2 border-black/10">
-                        {!activeProject ? (
-                            <div className="flex h-[320px] items-center justify-center px-4 text-center text-sm text-white/80">
-                                No active project selected
-                            </div>
-                            ) : iframeMode !== "stats" ? (
-                            <iframe
-                                key={activeUrl}
-                                src={activeUrl}
-                                className="h-[340px] w-full border-none bg-white"
-                                title="Mobile Preview"
-                                sandbox="allow-scripts allow-same-origin allow-forms"
-                            />
-                            ) : (
-                            <div className="h-[340px] overflow-y-auto bg-[#252429] p-3 text-white">
-                                {statsLoading ? (
-                                <div className="flex h-full items-center justify-center text-sm text-white/70">
-                                    Fetching repo stats...
-                                </div>
-                                ) : repoStats ? (
-                                <div className="space-y-3">
-                                    {repoStats.aiSlopFlag && (
-                                    <div className="rounded-xl border border-[#ffb703] bg-[#ffb703]/15 p-2">
-                                        <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#ffb703]">
-                                        <AlertTriangle className="h-3 w-3" />
-                                        AI Slop Suspected
-                                        </p>
-                                    </div>
-                                    )}
-
-                                    <div className="rounded-xl bg-white/5 p-3">
-                                    <p className="text-sm font-black">{repoStats.name}</p>
-                                    {repoStats.description && (
-                                        <p className="mt-1 text-[11px] leading-snug text-white/70">
-                                        {repoStats.description}
-                                        </p>
-                                    )}
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-2">
-                                    <div className="rounded-xl bg-white/5 p-2">
-                                        <p className="text-[10px] text-white/60">Stars</p>
-                                        <p className="text-sm font-black">{repoStats.stars}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white/5 p-2">
-                                        <p className="text-[10px] text-white/60">Forks</p>
-                                        <p className="text-sm font-black">{repoStats.forks}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white/5 p-2">
-                                        <p className="text-[10px] text-white/60">Commits</p>
-                                        <p className="text-sm font-black">{repoStats.commitCount}</p>
-                                    </div>
-                                    <div className="rounded-xl bg-white/5 p-2">
-                                        <p className="text-[10px] text-white/60">Language</p>
-                                        <p className="text-sm font-black">
-                                        {repoStats.language || "Unknown"}
-                                        </p>
-                                    </div>
-                                    </div>
-                                </div>
-                                ) : (
-                                <div className="flex h-full items-center justify-center text-sm text-white/70">
-                                    Failed to load stats
-                                </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    {preflight && (
-                        <div className="mt-3 space-y-2">
-                            <MobileCheckRow result={preflight.readme_check} label="README"/>
-                            <MobileCheckRow 
-                                result={preflight.playable_url_check}
-                                label="Playable URL" />
-                            <MobileCheckRow result={preflight.birth_year_check} label="Age"/>
-                            <MobileCheckRow
-                                result={preflight.anti_fraud_check}
-                                label="Anti Fraud"/>
-                        </div>
-                    )}
-
-                    {preflight && preflight.flags.length > 0 && (
-                        <div className="mt-3 rounded-[18px] border border-[#ffb703] bg-[#fff1bf] p-3">
-                            <p className="flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-[#9a6700]">
-                                <AlertTriangle className="h-3 w-3" />
-                                Fraud Warning
-                            </p>
-                            <div className="mt-2 space-y-1">
-                                {preflight.flags.map((flag, idx) => (
-                                    <p key={idx} className="text-[11px] leading-snug text-[#17171d]">
-                                        {flag}
-                                    </p>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Custom Comments Form Section */}
-                    <div className="mt-4 rounded-[24px] border-2 border-[#17171d] bg-white p-3 space-y-3 shadow-[0_4px_0_#17171d]">
-                        <div>
-                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Public Feedback</label>
-                            <textarea
-                                value={publicComment}
-                                onChange={(e) => setPublicComment(e.target.value)}
-                                className="w-full mt-1 rounded-xl border-2 border-[#17171d] p-2 text-xs bg-slate-50 font-mono"
-                                rows={2}
-                                placeholder="Sent directly to student..."
-                            />
-                        </div>
-                        <div>
-                            <label className="text-[10px] font-black uppercase tracking-wider text-slate-500">Private Reviewer Logs</label>
-                            <textarea
-                                value={privateComment}
-                                onChange={(e) => setPrivateComment(e.target.value)}
-                                className="w-full mt-1 rounded-xl border-2 border-[#17171d] p-2 text-xs bg-slate-50 font-mono"
-                                rows={1}
-                                placeholder="Internal logs..."
-                            />
-                        </div>
-                    </div>
-
-                    {/* Copypasta Actions Palette */}
-                    <div className="mt-4 rounded-[18px] bg-[#3e0000] p-3 text-white shadow-sm">
-                        <div className="flex items-center justify-between gap-2">
-                            <p className="text-[10px] font-black uppercase tracking-wider text-white/80">
-                                Copypasta Palette
-                            </p>
-                            <Search className="h-3.5 w-3.5 text-white/70" />
-                        </div>
-
-                        <div className="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                            {copypastas.map((item, idx) => (
-                                <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => {
-                                        handleInsertCopypasta(item);
-                                        handleCopy(idx, item.text);
-                                    }}
-                                    className="shrink-0 rounded-md bg-white px-2.5 py-1.5 text-[10px] font-black text-[#17171d] shadow-sm transition active:scale-95"
-                                >
-                                    {copied === idx ? "Injected!" : item.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                </div>
-            </main>
-
-            <footer className="fixed bottom-0 left-0 right-0 z-30 border-t-4 border-black bg-[#f7c9d1] p-3 shadow-2xl">
-                <div className="mx-auto flex max-w-md gap-3">
-                    <button
-                        onClick={() => handleStatusUpdate("Approved")}
-                        disabled={!activeProject}
-                        className="flex-1 rounded-2xl border-2 border-black bg-[#19f319] py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none disabled:opacity-50">
-                            Accept
-                    </button>
-                    <button
-                        onClick={() => handleStatusUpdate("Rejected")}
-                        disabled={!activeProject}
-                        className="flex-1 rounded-2xl border-2 border-black bg-[#ff3b30] py-3 text-sm font-black text-white shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none disabled:opacity-50">
-                            Reject
-                    </button>
-                </div>
-            </footer>
-        </div>
+    const hackatimeProjects = normalizeHackatimeProjects(
+        activeProject?.hackatime_projects
     );
+
+    return (
+        <div
+            className="min-h-screen bg-[#ec3750] text-[#17171d]"
+            style={{ fontFamily: "Phantom Sans, system-ui, sans-serif" }}
+        >
+            <div className="sticky top-0 z-30 border-b-2 border-[#17171d] bg-[#f9d8de] px-4 pb-3 pt-4 shadow-[0_4px_0_#17171d]">
+                <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center justify-between gap-3">
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2rem] text-[#8492a6]">
+                                Velocity Mobile
+                            </p>
+                            <h1 className="text-xl font-black text-[#17171d]">
+                                {queueCount} in queue
+                            </h1>
+                        </div>
+
+                        <div className="rounded-2xl bg-[#17171d] px-3 py-2 text-white shadow-[0_3px_0_#080861]">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
+                                Active
+                            </p>
+                            <p className="max-w-[120px] truncate text-xs font-black">
+                                {repoName}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-3 gap-2 rounded-2xl border-2 border-[#17171d] bg-[#17171d] p-1">
+                        {[
+                            { key: "queue", label: "Queue" },
+                            { key: "review", label: "Review" },
+                            { key: "context", label: "Context" },
+                        ].map((tab) => {
+                            const selected = activeTab === tab.key;
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key as MobileTab)}
+                                    className={`rounded-xl px-3 py-2 text-xs font-black transition ${
+                                        selected
+                                        ? "bg-[#ec3750] text-white shadow-[0_2px_0_#7e0630]"
+                                        : "text-[#a5b0c2]"
+                                    }`}
+                                >
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
 }
