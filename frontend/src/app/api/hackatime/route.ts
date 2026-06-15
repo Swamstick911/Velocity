@@ -1,66 +1,90 @@
-import { NextResponse } from "next/server";
-import { dbProvider } from "@/lib/db";
+import { NextRequest, NextResponse } from "next/server";
 
-export const dynamic = 'force-dynamic';
+const HACKATIME_API = "https://hackatime.hackclub.dev/api";
 
-export async function POST(request: Request) {
+function jsonError(message: string, status = 500, details?: unknown) {
+    return NextResponse.json(
+        {
+            ok: false,
+            error: message,
+            details: details ?? null,
+        },
+        { status }
+    );
+}
+
+export async function POST(req: NextRequest) {
     try {
-        const body = await request.json();
-        const { submissionId, githubUrl } = body;
+        const body = await req.json();
+        const { username } = body ?? {};
 
-        if(!githubUrl) {
-            return NextResponse.json({ error: "Missing githubUrl parameter" }, { status: 400 });
+        if (!username) {
+            return jsonError("Missing GitHub username for Hackatime check", 400);
         }
 
-        //Extract owner and repo name from the Github URL
-        const urlParts = githubUrl.replace("https://github.com/", "").split("/");
-        const owner = urlParts[0];
-        const repo = urlParts[1];
+        const cleanUsername = username.trim().replace(/^@/, "");
 
-        if(!owner || !repo) {
-            return NextResponse.json({ error: "Invalid githubUrl structure" }, { status: 400 })
-        }
+        const url = `${HACKATIME_API}/users/${cleanUsername}/stats`;
 
-        const response = await fetch(
-            `https://hackatime.hackclub.com/api/v1/stats/public/projects/${repo}`,
-            { cache: "no-store" }
-        );
+        const res = await fetch(url, {
+            method: "GET",
+            headers: {
+                "Accept": "application/json",
+            },
+            next: { revalidate: 300 },
+        });
 
-        if (!response.ok) {
-            return NextResponse.json(
-                { error: `Hackatime metrics could not be located for the project: ${repo}` },
-                { status: response.status }
-            );
-        }
+        if (!res.ok) {
+            let details: unknown = null;
+            try {
+                details = await res.json();
+            } catch {
+                details = await res.text().catch(() => null);
+            }
 
-        const data = await response.json();
-
-        const totalSeconds = data?.data?.total_seconds || 0;
-        const mappedHours = parseFloat((totalSeconds / 3600).toFixed(2));
-
-        if(submissionId) {
-            const isPostgres = process.env.DATABASE_TYPE === "postgres";
-            if (isPostgres) {
-                const { db } = await import("@/lib/prisma");
-                await db.submission.update({
-                    where: { id: submissionId },
-                    data: {
-                        hackatime_hours: mappedHours,
-                        hackatime_projects: [repo]
-                    }
+            if(res.status === 404) {
+                return NextResponse.json({
+                    ok: true,
+                    stats: { hours: 0, projects: [] },
+                    isRegistered: false,
                 });
             }
+
+            throw {
+                status: res.status,
+                message: "Failed to fetch Hackatime stats",
+                details,
+            };
         }
 
+        const data = await res.json();
+
+        const hours = data?.stats?.total_seconds ? Math.round(data.data.total_seconds / 3600) : 0;
+        const projects = Array.isArray(data?.data?.projects)
+            ? data.data.projects.map((p: any) => p?.name).filter(Boolean)
+            : [];
+
         return NextResponse.json({
-            project: repo,
-            hours: mappedHours,
-            raw: data?.data
+            ok: true,
+            stats: { hours, projects },
+            isRegistered: true,
         });
     } catch (error: any) {
-        return NextResponse.json(
-            { error: error.message || "Internal server error during Hackatime collection" },
-            { status: 500 }
+        console.error("Hackatime route error:", error);
+
+        const status = typeof error?.status === "number" && error.status >= 400 ? error.status: 500;
+
+        return jsonError(
+            error?.message || "Unexpected Hackatime API failure",
+            status,
+            error?.details ?? null
         );
     }
+}
+
+export async function GET(){
+    return jsonError(
+        "GET is not supported. Use POST with { username: string }",
+        405
+    );
 }
