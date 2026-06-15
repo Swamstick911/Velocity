@@ -86,7 +86,7 @@ async function updateAirtableRecord(
 
     const res = await fetch(url, {
         method: "PATCH",
-        headers: {
+        headers: { 
             Authorization: `Bearer ${airtableToken}`,
             "Content-Type": "application/json",
         },

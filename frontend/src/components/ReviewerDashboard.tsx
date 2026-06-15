@@ -423,7 +423,7 @@ export default function ReviewerDashboard() {
     if (airtableToken && airtableBaseId && airtableTableName) {
       void fetchQueue();
     }
-  }, [fetchQueue, airtableToken, airtableBaseId, airtableTableName]);
+  }, [fetchQueue, airtableToken, airtableBaseId]);
 
   if(fetchStatus === "loading" && !hasLoadedOnce) {
     return <DashboardSkeleton />;
