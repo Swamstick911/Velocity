@@ -2,7 +2,7 @@
 
 import { useSearchParams } from "next/navigation"
 import MobileReviewerDashboard from "./MobileReviewerDashboard";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
 import {
   CheckCircle,
@@ -71,6 +71,8 @@ interface PreviousSubmission {
 }
 
 type CopypastaType = "public" | "private";
+
+type FetchStatus = "loading" | "success" | "error";
 
 export interface Copypasta{
   label: string;
@@ -153,11 +155,105 @@ const CheckRow = ({
   </div>
 );
 
+function DashboardSkeleton() {
+  return (
+    <div className="min-h-screen bg-[#f7f3ea] text-[#17171d]">
+      <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mb-6 animate-pulse">
+          <div className="h-8 w-56 rounded bg-[#17171d]/10"/>
+          <div className="mt-3 h-4 w-80 rounded bg-[#17171d]/10" />
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+          <div className="rounded-3xl border-4 border-[#17171d] bg-white p-5 shadow-[0_8px_0_#17171d]">
+            <div className="space-y-3 animate-pulse">
+              <div className="h-6 w-40 rounded bg-[#17171d]/10"/>
+              <div className="h-20 rounded-2xl bg-[#17171d]/10" />
+              <div className="h-20 rounded-2xl bg-[#17171d]/10" />
+              <div className="h-20 rounded-2xl bg-[#17171d]/10"/>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border-4 border-[#17171d] bg-white p-5 shadow-[0_8px_0_#17171d]">
+            <div className="space-y-4 animate-pulse">
+              <div className="h-8 w-64 rounded bg-[#17171d]/10"/>
+              <div className="h-64 rounded-2xl bg-[#17171d]/10" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="h-24 rounded-2xl bg-[#17171d]/10"/>
+                <div className="h-24 rounded-2xl bg-[#17171d]/10"/>
+              </div>
+              <div className="h-28 rounded-2xl bg-[#17171d]/10" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DashboardError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div className="min-h-screen bg-[#f7f3ea] px-4 py-10 text-[#17171d]">
+      <div className="mx-auto max-w-xl rounded-3xl border-4 border-[#17171d] bg-white p-6 shadow-[0_8px_0_#17171d]">
+        <div className="mb-4 inline-flex rounded-2xl bg-[#ec3750]/10 px-3 py-1 text-sm font-black text-[#ec3750]">
+          Data Fetch failed
+        </div>
+
+        <h2 className="text-2xl font-black">Couldn&apos;t load the review queue</h2>
+        <p className="mt-3 text-sm leading-6 text-[#17171d]/75">
+          {message}
+        </p>
+
+        <button
+          onClick={onRetry}
+          className="mt-6 rounded-2xl border-4 border-[#17171d] bg-[#338eda] px-5 py-3 text-sm font-black text-white shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DashboardEmpty({ onRefresh }: { onRefresh: () => void }) {
+  return (
+    <div className="min-h-screen bg-[#f7f3ea] px-4 py-10 text-[#17171d]">
+      <div className="mx-auto max-w-xl rounded-3xl border-4 border-[#17171d] bg-white p-6 shadow-[0_8px_0_#17171d]">
+        <div className="mb-4 inline-flex rounded-2xl bg-[#33d6a6]/15 px-3 py-1 text-sm font-black text-[#12805c]">
+          Queue Clear
+        </div>
+
+        <h2 className="text-2xl font-black">No submissions to review</h2>
+        <p className="mt-3 text-sm leading-6 text-[#17171d]/75">
+          The Airtable queue is currently empty, or all pending items have already been processed
+        </p>
+
+        <button
+          onClick={onRefresh}
+          className="mt-6 rounded-2xl border-4 border-[#17171d] bg-[#ffd43b] px-5 py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none"
+        >
+          Refresh Queue
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ReviewerDashboard() {
   const defaultBackendUrl = process.env.NEXT_PUBLIC_API_URL || "";
 
   const [queue, setQueue] = useState<Submission[]>([]);
   const [activeProject, setActiveProject] = useState<Submission | null>(null);
+
+  const [fetchStatus, setFetchStatus] = useState<FetchStatus>("loading");
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const [pageLoading, setPageLoading] = useState(true);
   const [queueError, setQueueError] = useState<string | null>(null);
@@ -236,54 +332,110 @@ export default function ReviewerDashboard() {
     }
   };
 
-  const fetchQueue = async (
-    tokenOverride?: string,
-    baseIdOverride?: string,
-    tableNameOverride?: string
-  ) => {
-    try {
-      setPageLoading(true);
+  const fetchQueue = useCallback(
+    async (
+      token?: string,
+      baseId?: string,
+      tableName?: string
+    ) => {
+      setFetchStatus("loading");
+      setFetchError(null);
       setQueueError(null);
 
-      const token = tokenOverride ?? airtableToken;
-      const baseId = baseIdOverride ?? airtableBaseId;
-      const tableName = tableNameOverride ?? airtableTableName;
+      const resolvedToken = token ?? airtableToken;
+      const resolvedBaseId = baseId ?? airtableBaseId;
+      const resolvedTableName = tableName ?? airtableTableName;
 
-      const params = new URLSearchParams({
-        airtableToken: token,
-        airtableBaseId: baseId,
-        airtableTableName: tableName,
-      });
-
-      const res = await fetch(`/api/airtable?${params.toString()}`);
-      if (!res.ok) throw new Error("Failed to fetch queue");
-
-      const data = await res.json();
-      setQueue(Array.isArray(data) ? data : []);
-
-      if(Array.isArray(data)) {
-        fetchHistoryCounts(data);
-      }
-
-      if (Array.isArray(data) && data.length > 0) {
-        setActiveProject(data[0]);
-        setPublicComment(data[0].public_comment || "");
-        setPrivateComment(data[0].private_comment || "");
-        fetchPreviousSubmissions(data[0].github_url);
-      } else {
+      if (!resolvedToken || !resolvedBaseId || !resolvedTableName) {
+        setQueue([]);
         setActiveProject(null);
-        setPublicComment("");
-        setPrivateComment("");
-        setPreviousSubmissions([]);
+        setFetchError("Missing Airtable configuration.");
+        setFetchStatus("error");
+        setHasLoadedOnce(true);
+        return;
       }
-    } catch (err: any) {
-      setQueueError(err?.message || "Failed to fetch queue");
-      setQueue([]);
-      setActiveProject(null);
-    } finally {
-      setPageLoading(false);
+
+      try {
+        const res = await fetch("/api/airtable", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            airtableToken: resolvedToken,
+            airtableBaseId: resolvedBaseId,
+            airtableTableName: resolvedTableName,
+          }),
+          cache: "no-store",
+        });
+
+        if (!res.ok) {
+          let message = `Queue request failed with status ${res.status}`;
+
+          try {
+            const err = await res.json();
+            if (err?.error) message = err.error;
+          } catch {}
+
+          throw new Error(message);
+        }
+
+        const data = await res.json();
+
+        const nextQueue: Submission[] = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.submissions)
+          ? data.submissions
+          : Array.isArray(data?.records)
+          ? data.records
+          : [];
+
+        setQueue(nextQueue);
+
+        setActiveProject((current) => {
+          if (!nextQueue.length) return null;
+          if (!current) return nextQueue[0];
+
+          const matched = nextQueue.find((item) => item.id === current.id);
+          return matched ?? nextQueue[0];
+        });
+
+        setFetchStatus("success");
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Something went wrong while loading the review queue.";
+
+        setQueue([]);
+        setActiveProject(null);
+        setFetchError(message);
+        setQueueError(message);
+        setFetchStatus("error");
+      } finally {
+        setHasLoadedOnce(true);
+      }
+    },
+    [airtableToken, airtableBaseId, airtableTableName]
+  );
+
+  useEffect(() => {
+    if (airtableToken && airtableBaseId && airtableTableName) {
+      void fetchQueue();
     }
-  };
+  }, [fetchQueue, airtableToken, airtableBaseId, airtableTableName]);
+
+  if(fetchStatus === "loading" && !hasLoadedOnce) {
+    return <DashboardSkeleton />;
+  }
+
+  if(fetchStatus === "error") {
+    return <DashboardError message={fetchError || "Unknown error"} onRetry={fetchQueue} />;
+  }
+
+  if(fetchStatus === "success" && queue.length === 0) {
+    return <DashboardEmpty onRefresh={fetchQueue}/>;
+  }
 
   useEffect(() => {
     setPageLoading(false);
