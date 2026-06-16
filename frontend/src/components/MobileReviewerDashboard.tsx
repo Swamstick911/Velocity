@@ -231,6 +231,191 @@ export default function MobileReviewerDashboard({
                         })}
                     </div>
                 </div>
+
+                <main className="space-y-4 px-4 pb-28 pt-4">
+                    {activeTab === "queue" && (
+                        <section className="space-y-3">
+                            {queue.length === 0 ? (
+                                <div className="rounded-3xl border-2 border-[#17171d] bg-white p-5 shadow-[0_6px_0_#17171d]">
+                                    <p className="text-sm font-bold text-[#8492a6]">
+                                        No submissions loaded yet
+                                    </p>
+                                </div>
+                            ) : (
+                                queue.map((project) => {
+                                    const isActive = activeProject?.id === project.id;
+                                    const projectRepo =
+                                        project.github_url.split("/").pop() || "Unknown repo";
+
+                                    return (
+                                        <button
+                                            key={project.id}
+                                            onClick={() => handleProjectSwitch(project)}
+                                            className={`w-full rounded-3xl border-2 px-4 py-4 text-left shadow-[0_5px_0_#17171d] transition active:translate-y-1 active:shadow-none ${
+                                                isActive
+                                                    ? "border-[#17171d] bg-[#ffd43b]"
+                                                    : "border-[#17171d] bg-white"
+                                            }`}
+                                        >
+                                            <div className="flex items-center gap-2">
+                                                <StatusDot status={project.status}/>
+                                                <p className="truncate text-sm font-black text-[#17171d]">
+                                                    {projectRepo}
+                                                </p>
+                                            </div>
+
+                                            <p className="mt-1 pl-4 text-[11px] font-bold uppercase tracking-wider text-[#8492a6]">
+                                                {project.target_program}
+                                            </p>
+
+                                            {project.description?.trim() && (
+                                                <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-[#5c6675]">
+                                                    {project.description}
+                                                </p>
+                                            )}
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </section>
+                    )}
+
+                    {activeTab === "review" && (
+                        <section className="space-y-4">
+                            {activeProject ? (
+                                <div className="rounded-3xl border-2 border-[#17171d] bg-white p-6 text-center shadow-[0_6px_0_#17171d]">
+                                    <p className="text-sm font-bold text-[#8492a6]">
+                                        Pick a submission from the queue to start reviewing
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="rounded-3xl border-2 border-[#17171d] bg-white p-4 shadow-[0_6px_0_#17171d]">
+                                        <div className="mb-3 flex items-center justify-between gap-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18rem] text-[#8492a6]">
+                                                Preview Mode
+                                            </p>
+                                            <p className="text-sm font-black text-[#17171d]">
+                                                {repoName}
+                                            </p>
+                                        </div>
+
+                                        <div className="flex gap-1 rounded-xl border-2 border-[#17171d] bg-[#17171d] p-1">
+                                            {[
+                                                { mode: "demo", label: "Live", icon: ExternalLink },
+                                                { mode: "github", label: "Code", icon: Code },
+                                                { mode: "stats", label: "Stats", icon: Search },
+                                            ].map(({ mode, label, icon: Icon }) => (
+                                                <button
+                                                    key={mode}
+                                                    onClick={() => {
+                                                        setIframeMode(mode as IframeMode);
+                                                        if (
+                                                            mode === "stats" &&
+                                                            activeProject &&
+                                                            !repoStats
+                                                        ) {
+                                                            fetchRepoStats(activeProject.github_url);
+                                                        }
+                                                    }}
+                                                    className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-black transition ${
+                                                        iframeMode === mode
+                                                            ? "bg-[#ec3750] text-white"
+                                                            : "text-[#a5b0c2]"
+                                                    }`}
+                                                >
+                                                    <Icon className="h-3 w-3" />
+                                                    {label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="overflow-hidden rounded-2xl border-2 border-[#17171d] bg-[#252429]">
+                                        {iframeMode !== "stats" ? (
+                                            activeUrl ? (
+                                                <iframe
+                                                    key={activeUrl}
+                                                    src={activeUrl}
+                                                    title="Mobile Preview"
+                                                    className="h-[320px] w-full border-none"
+                                                    sandbox="allow-scripts allow-same-origin allow-forms"
+                                                />
+                                            ) : (
+                                                <div className="flex h-[320px] items-center justify-center p-4 text-center text-sm font-bold text-[#8492a6]">
+                                                    No Preview URL available
+                                                </div>
+                                            )
+                                        ): statsLoading ? (
+                                            <div className="flex h-[320px] flex-col items-center justify-center gap-3 text-white">
+                                                <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#ec3750] border-t-transparent"/>
+                                                <p className="text-sm font-bold text-[#a5b0c2]">
+                                                    Fetching Repo stats...
+                                                </p>
+                                            </div>
+                                        ) : repoStats ? (
+                                            <div className="space-y-3 p-4 text-white">
+                                                {repoStats.aiSlopFlag && (
+                                                    <div className="rounded-2xl border-2 border-[#ff8c37] bg-[#ff8c3720] p-3">
+                                                        <div className="flex items-start gap-2">
+                                                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#ff8c37]"/>
+                                                            <div>
+                                                                <p className="text-[11px] font-black uppercase">
+                                                                    AI Slop Detected
+                                                                </p>
+                                                                <p className="mt-1 text-xs text-[#a5b0c2]">
+                                                                    Very low commit count with a large additions
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {[
+                                                        { label: "Stars", value: repoStats.stars },
+                                                        { label: "Forks", value: repoStats.forks },
+                                                        { label: "Issues", value: repoStats.openIssues },
+                                                        { label: "Commits", value: repoStats.commitCount },
+                                                    ].map((item) => (
+                                                        <div 
+                                                            key={item.label}
+                                                            className="rounded-xl bg-[#17171d] px-3 py-2"
+                                                        >
+                                                            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">
+                                                                {item.label}
+                                                            </p>
+                                                            <p className="mt-1 text-sm font-black text-white">
+                                                                {item.value}
+                                                            </p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+
+                                                {repoStats.language && (
+                                                    <div className="rounded-xl bg-[#17171d] px-3 py-2">
+                                                        <p className="text-[10px] font-bold uppercase tracking-wide text-[#8492a6]">
+                                                            Language
+                                                        </p>
+                                                        <p className="mt-1 text-sm font-black text-white">
+                                                            {repoStats.language}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex h-[320px] items-center justify-center p-4 text-center text-sm font-bold text-[#8492a6]">
+                                                Failed to load stats
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    
+                                </>
+                            )}
+                        </section>
+                    )}
+                </main>
             </div>
         </div>
     )
