@@ -410,7 +410,169 @@ export default function MobileReviewerDashboard({
                                         )}
                                     </div>
 
-                                    
+                                    <div className="rounded-3xl border-2 border-[#17171d] bg-white p-4 shadow-[0_6px_0_#17171d]">
+                                        <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18rem] text-[#33d6a6]">
+                                            Public Comment
+                                        </p>
+                                        <textarea
+                                            value={publicComment}
+                                            onChange={(e) => setPublicComment(e.target.value)}
+                                            placeholder="Write feedback visible to the submitter..."
+                                            rows={5}
+                                            className="w-full resize-none rounded-2xl border-2 border-[#17171d] bg-[#f7f3ea] px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#33d6a6]"
+                                        />
+                                    </div>
+
+                                    <div className="rounded-3xl border-2 border-[#17171d] bg-white p-4 shadow-[0_6px_0_#17171d]">
+                                        <p className="mb-3 text-[10px] font-black uppercase tracking-[0.18rem] text-[#ff8c37]">
+                                            Private Comment
+                                        </p>
+                                        <textarea
+                                            value={privateComment}
+                                            onChange={(e) => setPrivateComment(e.target.value)}
+                                            placeholder="Internal review notes..."
+                                            rows={5}
+                                            className="w-full resize-none rounded-2xl border-2 border-[#17171d] bg-[#f7f3ea] px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ff8c37]"
+                                        />
+                                    </div>
+
+                                    <div className="rounded-3xl border-2 border-[#17171d] bg-white p-4 shadow-[0_6px_0_#17171d]">
+                                        <div className="mb-3 flex items-center justify-between gap-2">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18rem] text-[#8492a6]">
+                                                Copypasta Palette
+                                            </p>
+                                            {copypastaFeedback && (
+                                                <span className="text-[10px] font-black text-[#33d6a6]">
+                                                    {copypastaFeedback}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            {copypastas.map((copypasta, idx) => (
+                                                <div
+                                                    key={`${copypasta.label}-${idx}`}
+                                                    className="rounded-2xl border-2 border-[#17171d] bg-[#f7f3ea] p-3"
+                                                >
+                                                    <div className="mb-2 flex items-center justify-between gap-2">
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-xs font-black text-[#17171d]">
+                                                                {copypasta.label}
+                                                            </p>
+                                                            <p
+                                                                className={`text-[10px] font-black uppercase tracking-wide ${
+                                                                    copypasta.type === "public"
+                                                                        ? "text-[#33d6a6]"
+                                                                        : "text-[#ff8c37]"
+                                                                }`}
+                                                            >
+                                                                {copypasta.type}
+                                                            </p>
+                                                        </div>
+
+                                                        <button
+                                                            onClick={() => handleCopy(idx, copypasta.text)}
+                                                            className="rounded-lg border-2 border-[#17171d] bg-white px-2 py-1 text-[#17171d]"
+                                                            title="Copy to Clipboard"
+                                                        >
+                                                            {copied === idx ? (
+                                                                <span className="text-[10px] font-black text-[#33d6a6]">
+                                                                    Copied
+                                                                </span>
+                                                            ) : (
+                                                                <Copy className="h-3.5 w-3.5"/>
+                                                            )}
+                                                        </button>
+                                                    </div>
+
+                                                    <p className="text-xs leading-relaxed text-[#5c6675]">
+                                                        {copypasta.text}
+                                                    </p>
+
+                                                    <button
+                                                        onClick={() => handleInsertCopypasta(copypasta)}
+                                                        className={`mt-3 w-full rounded-xl border-2 border-[#17171d] px-3 py-2 text-xs font-black shadow-[0_3px_0_#17171d] transition active:translate-y-1 active:shadow-none ${
+                                                            copypasta.type === "public"
+                                                                ? "bg-[#33d6a6] text-[#17171d]"
+                                                                : "bg-[#ff8c37] text-[#17171d]"
+                                                        }`}
+                                                    >
+                                                        Insert into {copypasta.type === "public" ? "Public" : "Private"}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </section>
+                    )}
+
+                    {activeTab === "context" && (
+                        <section className="space-y-4">
+                            {!activeProject ? (
+                                <div className="rounded-3xl border-2 border-[#17171d] bg-white p-6 text-center shadow-[0_6px_0_#17171d]">
+                                    <p className="text-sm font-bold text-[#8492a6]">
+                                        Pick a submission to see context
+                                    </p>
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="rounded-3xl border-2 border-[#17171d] bg-white p-4 shadow-[0_6px_0_#17171d]">
+                                        <p className="text-[10px] font-black uppercase tracking-[0.18rem] text-[#8492a6]">
+                                            Submission
+                                        </p>
+                                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                                            <span className="rounded-full bg-[#17171d] px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[#33d6a6]">
+                                                {activeProject.target_program}
+                                            </span>
+                                            <span className="rounded-full bg-[#f3f4f6] px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[#8492a6]">
+                                                Age{" "}
+                                                {activeProject.birth_year ? 2026 - activeProject.birth_year: "Unknown"}
+                                            </span>
+                                        </div>
+
+                                        <div className="mt-3 rounded-2xl bg-[#f7f3ea] p-3">
+                                            <p className="text-[10px] font-black uppercase tracking-wide text-[#8492a6]">
+                                                Description
+                                            </p>
+                                            <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#17171d]">
+                                                {activeProject.description?.trim() || "No description provided"}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="rounded-3xl border-2 border-[#17171d] bg-white p-4 shadow-[0_6px_0_#17171d]">
+                                        <div className="mb-3 flex items-center justify-between">
+                                            <p className="text-[10px] font-black uppercase tracking-[0.18rem] text-[#8492a6]">
+                                                Preflight Checks
+                                            </p>
+                                            {scanLoading && (
+                                                <span className="text-[10px] font-black text-[#ff8c37]">
+                                                    Scanning...
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        {preflight ? (
+                                            <div className="space-y-2">
+                                                <CheckRow label="README" result={preflight.readmecheck}/>
+                                                <CheckRow
+                                                    label="Playable URL"
+                                                    result={preflight.playableurlcheck}
+                                                />
+                                                <CheckRow label="Age" result={preflight.birthyearcheck}/>
+                                                <CheckRow
+                                                    label="Anti Fraud"
+                                                    result={preflight.antifraudcheck}
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="rounded-2xl bg-[#f7f3ea] p-3 text-sm font-bold text-[#8492a6]">
+                                                No scan run yet
+                                            </div>
+                                        )}
+                                    </div>
                                 </>
                             )}
                         </section>
