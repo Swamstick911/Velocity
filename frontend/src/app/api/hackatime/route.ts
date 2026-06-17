@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
 
         const data = await res.json();
 
-        const hours = data?.stats?.total_seconds ? Math.round(data.data.total_seconds / 3600) : 0;
+        const hours = data?.data?.total_seconds ? Math.round(data.data.total_seconds / 3600) : 0;
         const projects = Array.isArray(data?.data?.projects)
             ? data.data.projects.map((p: any) => p?.name).filter(Boolean)
             : [];

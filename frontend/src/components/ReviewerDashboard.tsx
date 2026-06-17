@@ -246,7 +246,7 @@ function DashboardEmpty({ onRefresh }: { onRefresh: () => void }) {
 }
 
 export default function ReviewerDashboard() {
-  const defaultBackendUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const defaultBackendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "";
 
   const [queue, setQueue] = useState<Submission[]>([]);
   const [activeProject, setActiveProject] = useState<Submission | null>(null);
@@ -434,7 +434,7 @@ export default function ReviewerDashboard() {
     const emailFromUrl = params.get("email");
 
     if (emailFromUrl) {
-      fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/config/get?email=${emailFromUrl}`)
+      fetch(`${backendUrl}/api/config/get?email=${emailFromUrl}`)
       .then(res => res.json())
       .then(data => {
         if (data.airtable_access_token) {
@@ -802,6 +802,22 @@ export default function ReviewerDashboard() {
         throw new Error(err.error || "Failed to update status");
       }
 
+      //Record approved repos so double-dip/history checks can see them later
+      if (newStatus === "Approved" && backendUrl && activeProject.github_url) {
+        try {
+          await fetch(`${backendUrl}/api/submissions/record`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              github_url: activeProject.github_url,
+              program: activeProject.target_program,
+            }),
+          });
+        } catch (recordErr) {
+          console.error("Failed to record submissions history", recordErr);
+        }
+      }
+
       //Remove from queue after approval/rejection
       setQueue((prev) => prev.filter((p) => p.id !== activeProject.id));
       setActiveProject(null);
@@ -1032,7 +1048,7 @@ export default function ReviewerDashboard() {
                     const baseId = airtableBaseIdInput.trim()
                     const tableName = airtableTableNameInput.trim()
 
-                    await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL}/api/config/save`, {
+                    await fetch(`${backendUrl}/api/config/save`, {
                       method: "POST", 
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({
@@ -1077,7 +1093,7 @@ export default function ReviewerDashboard() {
                     <button
                       onClick={() => {
                         window.location.href =
-                        `${process.env.NEXT_PUBLIC_BACKEND_URL}/api/auth/login`;
+                        `${backendUrl}/api/auth/login`;
                       }}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#17171d] bg-[#ffb703] py-3.5 text-sm font-black text-[#17171d] shadow-[0_4px_0_#17171d] transition-all active:translate-y-1 active:shadow-none">
                         <img 
