@@ -48,7 +48,7 @@ def get_db():
 
 def init_db():
     conn = get_db()
-    conn.execute("""
+    conn.executescript("""
         CREATE TABLE IF NOT EXISTS reviewers (
             email TEXT PRIMARY KEY,
             airtable_access_token TEXT,
@@ -56,14 +56,14 @@ def init_db():
             airtable_token_expires_at INTEGER,
             airtable_base_id TEXT,
             airtable_table_name TEXT
-        )
+        );
 
         CREATE TABLE IF NOT EXISTS submissions (
             github_url TEXT NOT NULL,
             program TEXT NOT NULL,
             approved_at INTEGER,
             PRIMARY KEY(github_url, program)
-        )         
+        );         
     """)
     try:
         conn.execute("ALTER TABLE reviewers ADD COLUMN airtable_base_id TEXT")
@@ -506,7 +506,7 @@ async def get_config(email: str):
                 )
             if token_resp.status_code == 200:
                 token_data = token_resp.json()
-                access_token = token_data.get["access_token"]
+                access_token = token_data.get("access_token")
                 new_refresh = token_data.get("refresh_token", refresh_token)
                 new_expires = int(datetime.now().timestamp()) + token_data.get("expires_in", 3600)
                 conn = get_db()
@@ -523,7 +523,7 @@ async def get_config(email: str):
                 
     return {
         "email": row["email"],
-        "airtable_access_token": row["airtable_access_token"],
+        "airtable_access_token": access_token,
         "airtable_base_id": row["airtable_base_id"],
         "airtable_table_name": row["airtable_table_name"],
     }
@@ -570,35 +570,6 @@ async def record_submission(payload: SubmissionRecord):
     conn.close()
     return {"success": True}
 
-@app.get("/api/github/repo")
-async def github_repo_proxy(owner: str, repo: str):
-    client: httpx.AsyncClient = app.state.http_client
-
-    repo_res, commit_res, contributors_res = await asyncio.gather(
-        client.get(f"https://api.github.com/repo/{owner}/{repo}"),
-        client.get(f"https://api.github.com/repos/{owner}/{repo}/commits?per_page=10"),
-        client.get(f"https://api.github.com/repos/{owner}/{repo}/contributors?per_page=10"),
-    )
-
-    repo_data = repo_res.json() if repo_res.status_code == 200 else {}
-    commits_data = commits_res.json() if commits_res.status_code == 200 else []
-    contributors_data = contributors_res.json() if contributors_res.status_code == 200 else []
-
-    safe_commits = commits_data if isinstance(commits_data, list) else []
-
-    #Fetch detail for top 5 commits
-    commit_details = []
-    for c in safe_commits[:5]:
-        r = await client.get(f"https://api.github.com/repos/{owner}/{repo}/commits/{c['sha']}")
-        if r.status_code == 200:
-            commit_details.append(r.json())
-
-    return {
-        "repo": repo_data,
-        "commits": safe_commits,
-        "contributors": contributors_data if isinstance(contributors_data, list) else [],
-        "commitDetails": commit_details, 
-    }
 
 @app.get("/api/submissions/history")
 async def submission_history(github_url: str):
@@ -660,7 +631,7 @@ async def get_history_counts(payload: HistoryCountRequest):
         if url not in counts:
             counts[url] = 0
 
-        return counts
+    return counts
 
 @app.get("/")
 async def root():

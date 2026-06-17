@@ -22,16 +22,16 @@ function normalizeSubmission(record: any) {
 
     return {
         id: record?.id ?? "",
-        githuburl: fields["Github URL"] ?? "",
-        playableUrl: fields["Playable URL"] ?? "",
-        targetprogram: fields["Target Program"] ?? "",
+        github_url: fields["Github URL"] ?? "",
+        playable_url: fields["Playable URL"] ?? "",
+        target_program: fields["Target Program"] ?? "",
         status: fields["Status"] ?? "pending",
-        birthyear: fields["Birth Year"] ?? null,
+        birth_year: fields["Birth Year"] ?? null,
         description: fields["Description"] ?? "",
-        publiccomment: fields["Public Comment"] ?? "",
-        privatecomment: fields["Private Comment"] ?? "",
-        hacaktimehours: fields["Hackatime Hours"] ?? null,
-        hackatimeprojects: fields["Hackatime Projects"] ?? [],
+        public_comment: fields["Public Comment"] ?? "",
+        private_comment: fields["Private Comment"] ?? "",
+        hacaktime_hours: fields["Hackatime Hours"] ?? null,
+        hackatime_projects: fields["Hackatime Projects"] ?? [],
     };
 }
 
@@ -71,7 +71,7 @@ async function fetchAirtableRecords (
     const data = await res.json();
     const records = Array.isArray(data?.records) ? data.records : [];
 
-    return records.amap(normalizeSubmission);
+    return records.map(normalizeSubmission);
 }
 
 async function updateAirtableRecord(

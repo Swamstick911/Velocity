@@ -425,18 +425,6 @@ export default function ReviewerDashboard() {
     }
   }, [fetchQueue, airtableToken, airtableBaseId]);
 
-  if(fetchStatus === "loading" && !hasLoadedOnce) {
-    return <DashboardSkeleton />;
-  }
-
-  if(fetchStatus === "error") {
-    return <DashboardError message={fetchError || "Unknown error"} onRetry={fetchQueue} />;
-  }
-
-  if(fetchStatus === "success" && queue.length === 0) {
-    return <DashboardEmpty onRefresh={fetchQueue}/>;
-  }
-
   useEffect(() => {
     setPageLoading(false);
   }, []);
@@ -699,7 +687,7 @@ export default function ReviewerDashboard() {
         return;
       }
 
-      const res = await fetch(`${backendUrl}/api/submissions/history_counts`, {
+      const res = await fetch(`${backendUrl}/api/submissions/history-counts`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -911,7 +899,7 @@ export default function ReviewerDashboard() {
   const getHistoryCountForProject = (project: Submission) => {
     if (!project.github_url) return 0;
 
-    const cleanUrl = project.github_url.toLowerCase().replace(/\+$/, "");
+    const cleanUrl = project.github_url.toLowerCase().replace(/\/+$/, "");
     return historyCounts[cleanUrl] ?? 0;
   }
 
@@ -933,6 +921,18 @@ export default function ReviewerDashboard() {
     if(historyCount > 0) return "review-carefully"
     if(!hasHackatime) return "needs-context"
     return "clean-look"
+  }
+
+  if(fetchStatus === "loading" && !hasLoadedOnce) {
+    return <DashboardSkeleton />;
+  }
+
+  if(fetchStatus === "error") {
+    return <DashboardError message={fetchError || "Unknown error"} onRetry={fetchQueue} />;
+  }
+
+  if(fetchStatus === "success" && queue.length === 0) {
+    return <DashboardEmpty onRefresh={fetchQueue}/>;
   }
 
   return (

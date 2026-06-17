@@ -10,7 +10,7 @@ export class PostgresProvider implements IDatabaseProvider {
 
         return records.map((record: any) => ({
             id: record.id,
-            github_url: record.githubUrl,
+            github_url: record.github_url,
             playable_url: record.playable_url,
             target_program: record.target_program,
             status: record.status,

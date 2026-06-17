@@ -54,7 +54,7 @@ interface MobileReviewerDashboardProps {
   queue: Submission[];
   activeProject: Submission | null;
   handleProjectSwitch: (project: Submission) => void;
-  preflight: PreflightResponse | null;
+  preflight: PreflightResponse;
   repoStats: RepoStats | null;
   statsLoading: boolean;
   iframeMode: IframeMode;
