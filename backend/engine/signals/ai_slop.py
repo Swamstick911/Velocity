@@ -55,7 +55,7 @@ def _commit_times(commits):
     return times
 
 #signals
-def _ai_single_commit_dump(ctx) -> SignalResult:
+def ai_single_commit_dump(ctx) -> SignalResult:
     sid = "ai_single_commit_dump"
     if not ctx.commits or not ctx.commits_details:
         return _insufficient(sid, "Not enough commit data to assess")
