@@ -939,7 +939,12 @@ export default function ReviewerDashboard() {
     return "clean-look"
   }
 
-  if(fetchStatus === "loading" && !hasLoadedOnce) {
+  const hasAirtableCreds = Boolean(airtableToken && airtableBaseId && airtableTableName);
+
+  const isReturningFromOAuth = searchParams.has("email");
+
+
+  if(fetchStatus === "loading" && !hasLoadedOnce && (hasAirtableCreds || isReturningFromOAuth)) {
     return <DashboardSkeleton />;
   }
 

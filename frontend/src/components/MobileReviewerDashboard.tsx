@@ -18,11 +18,11 @@ interface CheckResult {
 }
 
 interface PreflightResponse {
-  overallpassed: boolean;
-  birthyearcheck: CheckResult;
-  readmecheck: CheckResult;
-  playableurlcheck: CheckResult;
-  antifraudcheck: CheckResult;
+  overall_passed: boolean;
+  birth_year_check: CheckResult;
+  readme_check: CheckResult;
+  playable_url_check: CheckResult;
+  anti_fraud_check: CheckResult;
   flags: string[];
 }
 
@@ -54,7 +54,7 @@ interface MobileReviewerDashboardProps {
   queue: Submission[];
   activeProject: Submission | null;
   handleProjectSwitch: (project: Submission) => void;
-  preflight: PreflightResponse;
+  preflight: PreflightResponse | null;
   repoStats: RepoStats | null;
   statsLoading: boolean;
   iframeMode: IframeMode;
@@ -558,15 +558,15 @@ export default function MobileReviewerDashboard({
 
                   {preflight ? (
                     <div className="space-y-2">
-                      <CheckRow label="README" result={preflight.readmecheck} />
+                      <CheckRow label="README" result={preflight.readme_check} />
                       <CheckRow
                         label="Playable URL"
-                        result={preflight.playableurlcheck}
+                        result={preflight.playable_url_check}
                       />
-                      <CheckRow label="Age" result={preflight.birthyearcheck} />
+                      <CheckRow label="Age" result={preflight.birth_year_check} />
                       <CheckRow
                         label="Anti Fraud"
-                        result={preflight.antifraudcheck}
+                        result={preflight.anti_fraud_check}
                       />
                     </div>
                   ) : (
