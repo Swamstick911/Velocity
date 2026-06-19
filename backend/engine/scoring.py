@@ -43,5 +43,5 @@ def score_submission(signals) -> dict:
         "tier": tier,
         "score": total,
         "gate": _GATE_FOR_TIER[tier],
-        "by-vector": by_vector(signals),
+        "by_vector": by_vector(signals),
     }

@@ -49,6 +49,7 @@ TIER_FLAGGED_MIN = 60
 #Uniform output of every signal
 class SignalResult(BaseModel):
     id: str
+    vector: str
     status: str
     severity: str
     score: int = 0
