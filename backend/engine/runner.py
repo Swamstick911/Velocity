@@ -32,6 +32,6 @@ def evaluate(ctx) -> dict:
 
     risk = score_submission(results)
     return {
-        "signal": [r.model_dump() for r in results],
+        "signals": [r.model_dump() for r in results],
         "risk": risk,
     }
