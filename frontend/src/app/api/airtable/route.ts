@@ -41,7 +41,7 @@ async function fetchAirtableRecords (
     airtableTableName: string
 ) {
     const encodedTable = encodeURIComponent(airtableTableName);
-    const url = `${AIRTABLE_API_BASE}/${airtableBaseId}/${encodedTable}?view=Grid%20view`;
+    const url = `${AIRTABLE_API_BASE}/${airtableBaseId}/${encodedTable}`;
 
     const res = await fetch(url, {
         method: "GET",
