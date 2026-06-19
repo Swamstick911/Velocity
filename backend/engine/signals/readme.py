@@ -1,4 +1,4 @@
-""""README quality: exists, has enough substance, and includes a link
+"""README quality: exists, has enough substance, and includes a link
 These are low-severity quality nudges, not fraud signals."""
 
 from __future__ import annotations

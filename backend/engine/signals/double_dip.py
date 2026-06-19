@@ -1,6 +1,6 @@
 """Double-dip/reship signals. Beyond the old exact-URL match: catches
-normaized URL variants, forks/renames via identical git history (root
-commit), and the same Hackatime project reused accross submissions
+normalized URL variants, forks/renames via identical git history (root
+commit), and the same Hackatime project reused across submissions.
 
 Reads ctx.history_rows (recorded submissions). New columns referenced here
 (root_commit_sha, hackatime_projects) are added in the DB migration step, so
@@ -22,12 +22,13 @@ def _parse_projects(raw):
         return set()
     if isinstance(raw, list):
         return {p.strip().lower() for p in raw if p and p.strip()}
-    
+    return {p.strip().lower() for p in str(raw).split(",") if p.strip()}
+
 def dd_normalized_url_match(ctx) -> SignalResult:
-    sid="dd_normalized_url_match"
+    sid = "dd_normalized_url_match"
     if not ctx.history_rows:
         return _pass(sid, "No prior submissions on record")
-    
+
     cur = normalize_github_url(ctx.github_url)
     other_programs = []
     for row in ctx.history_rows:
@@ -37,22 +38,24 @@ def dd_normalized_url_match(ctx) -> SignalResult:
         if prog and prog != ctx.target_program:
             other_programs.append(prog)
 
-        if other_programs:
-            progs = sorted(set(other_programs))
-            return SignalResult(
-                id=sid, vector=Vector.DOUBLE_DIP, status=Status.FAIL, severity=Severity.HIGH, score=SEVERITY_POINTS[Severity.HIGH], detail=f"Same repo was already submitted to {', '.join(progs)}. Possible double-dip",
-                evidence={"programs": progs},
-            )
-        
-        return _pass(sid, "Repo URL not seen on another program")
-    
+    if other_programs:
+        progs = sorted(set(other_programs))
+        return SignalResult(
+            id=sid, vector=Vector.DOUBLE_DIP, status=Status.FAIL, severity=Severity.HIGH,
+            score=SEVERITY_POINTS[Severity.HIGH],
+            detail=f"Same repo was already submitted to {', '.join(progs)}. Possible double-dip",
+            evidence={"programs": progs},
+        )
+
+    return _pass(sid, "Repo URL not seen on another program")
+
 def dd_root_commit_match(ctx) -> SignalResult:
     sid = "dd_root_commit_match"
     if not ctx.root_commit_sha:
         return _insufficient(sid, "Root commit unavailable; ancestry not checked")
     if not ctx.history_rows:
         return _pass(sid, "No prior submissions on record")
-    
+
     cur_url = normalize_github_url(ctx.github_url)
     matches = []
     for row in ctx.history_rows:
@@ -65,7 +68,9 @@ def dd_root_commit_match(ctx) -> SignalResult:
     if matches:
         where = ", ".join(sorted({f"{u} ({p})" for u, p in matches}))
         return SignalResult(
-            id=sid, vector=Vector.DOUBLE_DIP, status=Status.FAIL, severity=Severity.HIGH, score=SEVERITY_POINTS[Severity.HIGH], detail=f"Identical git history (same root commit) as: {where}. Likely a fork/rename/reship",
+            id=sid, vector=Vector.DOUBLE_DIP, status=Status.FAIL, severity=Severity.HIGH,
+            score=SEVERITY_POINTS[Severity.HIGH],
+            detail=f"Identical git history (same root commit) as: {where}. Likely a fork/rename/reship",
             evidence={"root_commit_sha": ctx.root_commit_sha, "matches": [u for u, _ in matches]},
         )
     return _pass(sid, "Git history not seen under another repo")
@@ -74,7 +79,7 @@ def dd_hackatime_project_match(ctx) -> SignalResult:
     sid = "dd_hackatime_project_match"
     cur_projects = {p.strip().lower() for p in (ctx.hackatime_projects or []) if p and p.strip()}
     if not cur_projects:
-        return _pass(sid, "No prior submissions on record")
+        return _insufficient(sid, "No Hackatime projects to compare")
 
     cur_url = normalize_github_url(ctx.github_url)
     hits = []
@@ -88,7 +93,9 @@ def dd_hackatime_project_match(ctx) -> SignalResult:
     if hits:
         shared_all = sorted({p for _, ps in hits for p in ps})
         return SignalResult(
-            id=sid, vector=Vector.DOUBLE_DIP, status=Status.WARN, Severity=Severity.MEDIUM, score=SEVERITY_POINTS[Severity.MEDIUM], detail=f"Hackatime project(s) {', '.join(shared_all)} were also tracked for a different submission",
+            id=sid, vector=Vector.DOUBLE_DIP, status=Status.WARN, severity=Severity.MEDIUM,
+            score=SEVERITY_POINTS[Severity.MEDIUM],
+            detail=f"Hackatime project(s) {', '.join(shared_all)} were also tracked for a different submission",
             evidence={"shared_projects": shared_all},
         )
     return _pass(sid, "Hackatime projects not reused across submissions")

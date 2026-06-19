@@ -20,8 +20,8 @@ PLACEHOLDER_MARKERS = [
 ]
 
 def playable_reachable(ctx) -> SignalResult:
-    sid = "reachability_playable_url",
-    vector = Vector.REACHABILITY,
+    sid = "reachability_playable_url"
+    vector = Vector.REACHABILITY
     status = ctx.playable_status
 
     if status is None:

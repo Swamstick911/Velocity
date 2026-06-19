@@ -1,4 +1,4 @@
-""""Turns a list of SignalResults into an overall risk score, tier, and gate.
+"""Turns a list of SignalResults into an overall risk score, tier, and gate.
 
 Tier rules:
     - any HIGH-severity FAIL -> flagged(a definitive check tripped)

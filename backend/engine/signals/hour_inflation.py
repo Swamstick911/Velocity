@@ -18,7 +18,7 @@ def _pass(sid, detail, evidence=None):
     return SignalResult(id=sid, vector=Vector.HOUR_INFLATION, status=Status.PASS, severity=Severity.LOW, score=0, detail=detail, evidence=evidence or {})
 
 def _insufficient(sid, detail):
-    return SignalResult(id=sid, vector=Vector.HOUR_INFLATION, status=Status.PASS, severity=Severity.LOW, score=0, detail=detail)
+    return SignalResult(id=sid, vector=Vector.HOUR_INFLATION, status=Status.INSUFFICIENT, severity=Severity.LOW, score=0, detail=detail)
 
 def _norm(s):
     return re.sub(r"[^a-z0-9]", "", (s or "").lower())
@@ -26,7 +26,7 @@ def _norm(s):
 def hours_vs_code_inflation(ctx) -> SignalResult:
     sid = "hours_vs_code_inflation"
     hours = ctx.hackatime_hours
-    if hours in None:
+    if hours is None:
         return _insufficient(sid, "No Hackatime hours to compare")
     if not ctx.commit_details:
         return _insufficient(sid, "No code stats to compare against hours")
@@ -37,27 +37,27 @@ def hours_vs_code_inflation(ctx) -> SignalResult:
         return SignalResult(
             id=sid, vector=Vector.HOUR_INFLATION, status=Status.WARN, severity=Severity.MEDIUM,
             score=SEVERITY_POINTS[Severity.MEDIUM],
-            detail=f"{hours: 0f} Hackatime hours but only ~{lines} lines of code- hours look inflated",
+            detail=f"{hours:.0f} Hackatime hours but only ~{lines} lines of code- hours look inflated",
             evidence={"hours": hours, "lines": lines},
         )
     if hours >= INFLATION_LOW_HOURS and lines < INFLATION_LOW_MAX_LINES:
         return SignalResult(
             id=sid, vector=Vector.HOUR_INFLATION, status=Status.WARN, severity=Severity.LOW,
             score=SEVERITY_POINTS[Severity.LOW],
-            detail=f"{hours: 0f} Hackatime hours for ~{lines} lines of code- worth a glance",
+            detail=f"{hours:.0f} Hackatime hours for ~{lines} lines of code- worth a glance",
             evidence={"hours": hours, "lines": lines},
         )
-    return _pass(sid, f"Hours vs code volume look reasonable ({hours: 0f}h /~{lines} lines)", {"hours": hours, "lines": lines})
+    return _pass(sid, f"Hours vs code volume look reasonable ({hours:.0f}h /~{lines} lines)", {"hours": hours, "lines": lines})
 
 def hackatime_project_mismatch(ctx) -> SignalResult:
     sid = "hackatime_project_mismatch"
-    projects = [p for p in (ctx.hackatime_project or []) if p and p.strip()]
+    projects = [p for p in (ctx.hackatime_projects or []) if p and p.strip()]
     if not projects:
         return _insufficient(sid, "No hackatime projects to compare")
-    
+
     repo = _norm(ctx.repo)
     if not repo:
-        return _insufficient(sid, "No repo name to comare against")
+        return _insufficient(sid, "No repo name to compare against")
     
     for proj in projects:
         pn = _norm(proj)

@@ -68,7 +68,7 @@ class SubmissionContext:
     birth_year: Optional[int] = None
     submitter_username: Optional[str] = None
     hackatime_hours: Optional[float] = None
-    hackatime_projects: Optional[str] = field(default_factory=list)
+    hackatime_projects: Optional[list[str]] = field(default_factory=list)
     submitted_at: Optional[str] = None
     
     #fetched once data (None/empty when unavailable- signals degrade, never crash)

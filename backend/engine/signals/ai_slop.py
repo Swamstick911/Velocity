@@ -57,25 +57,25 @@ def _commit_times(commits):
 #signals
 def ai_single_commit_dump(ctx) -> SignalResult:
     sid = "ai_single_commit_dump"
-    if not ctx.commits or not ctx.commits_details:
+    if not ctx.commits or not ctx.commit_details:
         return _insufficient(sid, "Not enough commit data to assess")
-    if ctx.commits_count > 2:
-        return _pass(sid, f"{ctx.commits_count} commits- not a signal dump")
+    if ctx.commit_count > 2:
+        return _pass(sid, f"{ctx.commit_count} commits- not a single dump")
     adds = ctx.max_additions
     if adds >= SINGLE_DUMP_HIGH:
-        return _hit(sid, Severity.HIGH, f"Only {ctx.commits_count} commit(s) but {adds} lines added- likely an AI/copy-paste dump", {"commits": ctx.commit_count, "additions": adds})
+        return _hit(sid, Severity.HIGH, f"Only {ctx.commit_count} commit(s) but {adds} lines added- likely an AI/copy-paste dump", {"commits": ctx.commit_count, "additions": adds})
     if adds >= SINGLE_DUMP_MED:
-        return _hit(sid, Severity.MEDIUM, f"Only {ctx.commits_count} commit(s) but {adds} lines added- possible code drop", {"commits": ctx.commit_count, "additions": adds})
-    return _pass(sid, f"{ctx.commits_count} commit(s) {adds} lines- within normal range")
+        return _hit(sid, Severity.MEDIUM, f"Only {ctx.commit_count} commit(s) but {adds} lines added- possible code drop", {"commits": ctx.commit_count, "additions": adds})
+    return _pass(sid, f"{ctx.commit_count} commit(s) {adds} lines- within normal range")
 
 def ai_low_cadence_for_size(ctx) -> SignalResult:
     sid = "ai_low_cadence_for_size"
-    if not ctx.commits or not ctx.commits_details:
+    if not ctx.commits or not ctx.commit_details:
         return _insufficient(sid, "Not enough commit data to assess")
-    if not (3 <= ctx.commits_count <= LOW_CADENCE_MAX_COMMITS):
+    if not (3 <= ctx.commit_count <= LOW_CADENCE_MAX_COMMITS):
         return _pass(sid, "Commit history depth looks normal")
     if ctx.max_additions >= LOW_CADENCE_ADDITIONS:
-        return _hit(sid, Severity.MEDIUM, f"{ctx.commits_count} commits but a {ctx.max_additions}- line push- thin history for the code size", {"commits": ctx.commits_count, "additions": ctx.max_additions})
+        return _hit(sid, Severity.MEDIUM, f"{ctx.commit_count} commits but a {ctx.max_additions}- line push- thin history for the code size", {"commits": ctx.commit_count, "additions": ctx.max_additions})
     return _pass(sid, "Code size is consistent with commit count")
 
 def ai_commit_burst(ctx) -> SignalResult:
@@ -86,7 +86,7 @@ def ai_commit_burst(ctx) -> SignalResult:
     span = (max(times) - min(times)).total_seconds()
     if span <= BURST_WINDOW_SECONDS:
         minutes = int(span // 60)
-        return _hit(sid, Severity.MEDIUM, f"All {len(times)} commits landed within ~{minutes} min- looks dumped, not built iteratively", {"commits": len(times), "span_commits": int(span)})
+        return _hit(sid, Severity.MEDIUM, f"All {len(times)} commits landed within ~{minutes} min- looks dumped, not built iteratively", {"commits": len(times), "span_seconds": int(span)})
     return _pass(sid, "Commits are spread over time")
 
 def ai_generic_readme(ctx) -> SignalResult:
@@ -96,5 +96,5 @@ def ai_generic_readme(ctx) -> SignalResult:
     low = ctx.readme_text.lower()
     for marker in AI_README_MARKERS:
         if marker in low:
-            return _hit(sid, Severity.LOw, f'README contains a generated/template tell: "{marker}".', {"marker": marker})
-    return _pass(sid, "README shown no obvious AI/template tells")
+            return _hit(sid, Severity.LOW, f'README contains a generated/template tell: "{marker}".', {"marker": marker})
+    return _pass(sid, "README shows no obvious AI/template tells")
