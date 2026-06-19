@@ -124,7 +124,7 @@ def _load_history(get_db):
         conn.close()
         return [dict(r) for r in rows]
     except Exception as e:
-        logger.warining("history load failed: %s", e)
+        logger.warning("history load failed: %s", e)
         return []
     
 async def build_context(
