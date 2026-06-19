@@ -17,6 +17,9 @@ from dotenv import load_dotenv
 from starlette.middleware.sessions import SessionMiddleware
 from urllib.parse import urlencode
 
+from engine.context import build_context, _fetch_root_commit_sha
+from engine.runner import evaluate
+
 #Config
 load_dotenv()
 
@@ -73,6 +76,14 @@ def init_db():
         conn.execute("ALTER TABLE reviewers ADD COLUMN airtable_table_name TEXT")
     except:
         pass
+
+    #Anti fraud fingerprint columns on submissions (migrate older DBs)
+    for col in ("owner", "repo", "root_commit_sha", "hackatime_projects", "submitter_username"):
+        try:
+            conn.execute(f"ALTER TABLE submissions ADD COLUMN {col} TEXT")
+        except:
+            pass
+
     conn.commit()
     conn.close()
 
@@ -118,18 +129,27 @@ app.add_middleware(
 class PreflightRequest(BaseModel):
     github_url: HttpUrl
     playable_url: HttpUrl
-    birth_year: int
+    birth_year: int | None = None
     target_program: str = "Unknown YSWS"
+    hackatime_hours: float | None = None
+    hackatime_projects: list[str] | None = None
 
-    @field_validator("birth_year")
-    @classmethod
-    def birth_year_range(cls, v: int) -> int:
-        if not (MIN_BIRTH_YEAR <= v <= MAX_BIRTH_YEAR):
-            raise ValueError(
-                f"Birth year must be between {MIN_BIRTH_YEAR} and {MAX_BIRTH_YEAR}."
-            )
-        return v
-    
+class RiskSignal(BaseModel):
+    id: str
+    vector: str
+    status: str
+    severity: str
+    score: int
+    detail: str
+    evidence: dict = {}
+
+class RiskReport(BaseModel):
+    tier: str
+    score: int
+    gate: str
+    by_vector: dict[str, int]
+    signals: list[RiskSignal]
+
 class CheckResult(BaseModel):
     passed: bool
     detail: str
@@ -141,6 +161,7 @@ class PreflightResponse(BaseModel):
     readme_check: CheckResult
     anti_fraud_check: CheckResult
     flags: list[str] #human-readable fraud/warning signals
+    risk: RiskReport
 
 class PreviousSubmission(BaseModel):
     github_url: str
@@ -333,50 +354,68 @@ async def run_anti_fraud_checks(
 @app.post("/api/v1/preflight", response_model=PreflightResponse)
 async def run_preflight(payload: PreflightRequest):
     """
-    Runs all automated pre-flight checks on a YSWS submission
-    All checks are run concurrently for speed
+    Runs the anti-fraud engine- build the context once (all GitHub/DB reads),
+    evaluate every signal, then map the result back to the legacy check fields
+    plus a new risk report
     """
-    import asyncio
-
-    client: httpx.AsyncClient = app.state.http_client
-    flags: list[str] = []
-
-    #Parse GitHub URL early- fail fast if malformed
     parsed = parse_github_repo(str(payload.github_url))
-    if not parsed: 
+    if not parsed:
         raise HTTPException(
             status_code=422,
             detail="Could not parse GitHub owner/repo from the provided github_url",
         )
     owner, repo = parsed
-    logger.info("Preflight started | repo=%s/%s | user=%s", owner, repo, payload.target_program)
+    logger.info("Preflight started | repo=%s/%s | program=%s", owner, repo, payload.target_program)
 
-    #Run all checks concurrently
-    birth_result, playable_result, (readme_result, readme_flags), (fraud_result, fraud_flags) = await asyncio.gather(
-        check_birth_year(payload.birth_year),
-        check_playable_url(client, str(payload.playable_url)),
-        check_readme(client, owner, repo),
-        run_anti_fraud_checks(client, owner, repo, str(payload.github_url), payload.target_program)
+    ctx = await build_context(
+        app.state.http_client,
+        get_db,
+        github_url=str(payload.github_url),
+        playable_url=str(payload.playable_url),
+        target_program=payload.target_program,
+        birth_year=payload.birth_year,
+        hackatime_hours=payload.hackatime_hours,
+        hackatime_projects=payload.hackatime_projects,
     )
 
-    flags.extend(readme_flags)
-    flags.extend(fraud_flags)
+    result = evaluate(ctx)
+    signals = result["signals"]
+    risk = result["risk"]
+    by_id = {s["id"]: s for s in signals}
 
-    #Overall pass/fail
-    overall = birth_result.passed and playable_result.passed and readme_result.passed and fraud_result.passed
+    def _check(sig):
+        if not sig:
+            return CheckResult(passed=True, detail="Not checked")
+        passed = sig["status"] in ("pass", "insufficient_data")
+        return CheckResult(passed=passed, detail=sig["detail"])
+    fraud_vectors = {"ai_slop", "double_dip", "hour_inflation"}
+    fraud_hits = [s for s in signals if s["vector"] in fraud_vectors and s["status"] in ("warn", "fail")]
+    if fraud_hits:
+        worst = max(fraud_hits, key=lambda s: s["score"])
+        anti_fraud_check = CheckResult(passed=False, detail=worst["detail"])
+    else:
+        anti_fraud_check = CheckResult(passed=True, detail="No fraud signals detected")
 
+    flags = [s["detail"] for s in signals if s["status"] in ("warn", "fail")]
     logger.info(
-        "Preflight done | repo=%s/%s | passed=%s | flags=%d",
-        owner, repo, overall, len(flags),
+        "Preflight done | repo=%s/%s | tier=%s | score=%d | flags=%d",
+        owner, repo, risk["tier"], risk["score"], len(flags),
     )
 
     return PreflightResponse(
-        overall_passed=overall,
-        birth_year_check=birth_result,
-        playable_url_check=playable_result,
-        readme_check=readme_result,
-        anti_fraud_check=fraud_result,
+        overall_passed=risk["tier"] == "clean",
+        birth_year_check=_check(by_id.get("eligibility_birth_year")),
+        playable_url_check=_check(by_id.get("reachability_playable_url")),
+        readme_check=_check(by_id.get("readme_quality")),
+        anti_fraud_check=anti_fraud_check,
         flags=flags,
+        risk=RiskReport(
+            tier=risk["tier"],
+            score=risk["score"],
+            gate=risk["gate"],
+            by_vector=risk["by_vector"],
+            signals=signals,
+        ),
     )
 
 #Health Check
@@ -557,6 +596,8 @@ async def save_config(request: Request):
 class SubmissionRecord(BaseModel):
     github_url: str
     program: str
+    submitter_username: str | None = None
+    hackatime_projects: list[str] | str | None = None
 
 @app.post("/api/submissions/record")
 async def record_submission(payload: SubmissionRecord):
