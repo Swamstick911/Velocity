@@ -454,11 +454,11 @@ export default function ReviewerDashboard() {
     const emailFromUrl = params.get("email");
 
     if (emailFromUrl) {
-      fetch(`${backendUrl}/api/config/get?email=${emailFromUrl}`)
+      fetch(`${backendUrl}/api/config/get`, { credentials: "include" })
       .then(res => res.json())
       .then(data => {
         if (data.airtable_access_token) {
-          setEmail(emailFromUrl);
+          setEmail(data.email || emailFromUrl);
           setAirtableToken(data.airtable_access_token)
 
           if (data.airtable_base_id && data.airtable_table_name) {

@@ -114,7 +114,12 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET_KEY)
+app.add_middleware(
+    SessionMiddleware, 
+    secret_key=SESSION_SECRET_KEY,
+    same_site="none",
+    https_only=True,
+)
 
 #CORS
 app.add_middleware(
@@ -517,7 +522,11 @@ async def get_me(request: Request):
     return {"email": email}
 
 @app.get("/api/config/get")
-async def get_config(email: str):
+async def get_config(request: Request):
+    email = request.session.get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    
     conn = get_db()
     row = conn.execute(
         "SELECT * FROM reviewers WHERE email = ?", (email,)
