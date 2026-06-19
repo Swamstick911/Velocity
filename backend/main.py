@@ -602,11 +602,29 @@ class SubmissionRecord(BaseModel):
 @app.post("/api/submissions/record")
 async def record_submission(payload: SubmissionRecord):
     clean_url = payload.github_url.lower().rstrip('/')
+
+    parsed = parse_github_repo(payload.github_url)
+    owner, repo = parsed if parsed else (None, None)
+
+    root_sha = None
+    if owner and repo:
+        root_sha = await _fetch_root_commit_sha(app.state.http_client, owner, repo)
+    
+    projects = payload.hackatime_projects
+    if isinstance(projects, list):
+        projects_csv = ",".join(p.strip() for p in projects if p and p.strip())
+    elif isinstance(projects, str):
+        projects_csv = projects.strip()
+    else:
+        projects_csv = ""
+        
     conn = get_db()
     conn.execute("""
         INSERT OR IGNORE INTO submissions (github_url, program, approved_at)
         VALUES (?, ?, ?)
-    """, (clean_url, payload.program, int(datetime.now().timestamp())))
+    """, (clean_url, payload.program, int(datetime.now().timestamp()),
+        owner, repo, root_sha, projects_csv, payload.submitter_username,
+    ))
     conn.commit()
     conn.close()
     return {"success": True}

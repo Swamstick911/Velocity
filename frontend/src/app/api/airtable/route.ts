@@ -47,7 +47,7 @@ async function fetchAirtableRecords (
         method: "GET",
         headers: {
             Authorization: `Bearer ${airtableToken}`,
-            "Content Type": "application/json",
+            "Content-Type": "application/json",
         },
         cache: "no-store",
     });

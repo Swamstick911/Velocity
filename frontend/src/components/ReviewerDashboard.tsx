@@ -26,6 +26,24 @@ interface CheckResult {
   detail: string;
 }
 
+interface RiskSignal {
+  id: string;
+  vector: string;
+  status: string;
+  severity: string;
+  score: number;
+  detail: string;
+  evidence?: Record<string, any>;
+}
+
+interface RiskReport {
+  tier: string;
+  score: number;
+  gate: string;
+  by_vector: Record<string, number>;
+  signals: RiskSignal[];
+}
+
 interface PreflightResponse {
   overall_passed: boolean;
   birth_year_check: CheckResult;
@@ -33,6 +51,7 @@ interface PreflightResponse {
   playable_url_check: CheckResult;
   anti_fraud_check: CheckResult;
   flags: string[];
+  risk: RiskReport;
 }
 
 export interface Submission {
@@ -262,6 +281,7 @@ export default function ReviewerDashboard() {
 
   const [repoStats, setRepoStats] = useState<RepoStats | null>(null);
   const [preflight, setPreflight] = useState<PreflightResponse | null>(null);
+  const [gateAcknowledged, setGateAcknowledged] = useState(false);
 
   const [iframeMode, setIframeMode] = useState<"demo" | "github" | "stats">(
     "demo"
@@ -606,6 +626,7 @@ export default function ReviewerDashboard() {
 
     setScanLoading(true);
     setPreflight(null);
+    setGateAcknowledged(false);
 
     try {
       const headers: HeadersInit = {
@@ -616,6 +637,12 @@ export default function ReviewerDashboard() {
         headers["Authorization"] = `Bearer ${githubApiKey.trim()}`;
       }
 
+      const rawHours = activeProject.hackatime_hours;
+      const hackatimeHours =
+        rawHours === null || rawHours === undefined || rawHours === ""
+          ? null
+          : Number(rawHours);
+
       const res = await fetch(`${backendUrl}/api/v1/preflight`, {
         method: "POST",
         headers,
@@ -624,6 +651,8 @@ export default function ReviewerDashboard() {
           playable_url: activeProject.playable_url,
           birth_year: activeProject.birth_year,
           target_program: activeProject.target_program,
+          hackatime_hours: Number.isNaN(hackatimeHours) ? null : hackatimeHours,
+          hackatime_projects: normalizeHackatimeProjects(activeProject.hackatime_projects),
         }),
       });
 
@@ -811,6 +840,7 @@ export default function ReviewerDashboard() {
             body: JSON.stringify({
               github_url: activeProject.github_url,
               program: activeProject.target_program,
+              hackatime_hours: normalizeHackatimeProjects(activeProject.hackatime_projects),
             }),
           });
         } catch (recordErr) {
@@ -834,6 +864,7 @@ export default function ReviewerDashboard() {
     setIframeMode("demo");
     setRepoStats(null);
     setPreflight(null);
+    setGateAcknowledged(false);
     setPublicComment(p.public_comment || "");
     setPrivateComment(p.private_comment || "");
     setCopied(null);
@@ -942,6 +973,9 @@ export default function ReviewerDashboard() {
   const hasAirtableCreds = Boolean(airtableToken && airtableBaseId && airtableTableName);
 
   const isReturningFromOAuth = searchParams.has("email");
+
+  const gateBlocked = preflight?.risk?.gate === "block";
+  const approveBlocked = gateBlocked && !gateAcknowledged;
 
 
   if(fetchStatus === "loading" && !hasLoadedOnce && (hasAirtableCreds || isReturningFromOAuth)) {
@@ -1853,6 +1887,40 @@ export default function ReviewerDashboard() {
             )}
           </div>
 
+          {preflight?.risk && (
+            <div className="mx-3 mb-2 flex-none rounded-2xl bg-[#17171d] p-3 text-white">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
+                  Risk Assessment
+                </p>
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest ${
+                      preflight.risk.tier === "flagged"
+                        ? "bg-[#ec3750] text-white"
+                        : preflight.risk.tier === "review"
+                        ? "bg-[#ff8c37] text-[#17171d]"
+                        : "bg-[#33d6a6] text-[#17171d]"
+                    }`}
+                  >
+                    {preflight.risk.tier} . {preflight.risk.score}
+                  </span>
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(preflight.risk.by_vector)
+                    .filter(([, score]) => score > 0)
+                    .map(([vector, score]) => (
+                      <span
+                        key={vector}
+                        className="rounded-full bg-[#252429] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-[#8492a6]"
+                      >
+                        {vector.replace(/_/g, " ")}: {score}
+                      </span>
+                    ))}
+              </div>
+            </div>
+          )}
+
           {preflight && preflight.flags.length > 0 && (
             <div className="mx-3 mb-2 rounded-2xl border-2 border-[#ff8c37] bg-[#fff3cd] p-3">
               <p className="mb-1.5 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-[#ff8c37]">
@@ -2005,9 +2073,21 @@ export default function ReviewerDashboard() {
               </button>
             )}
 
+            {gateBlocked && (
+              <label className="flex items-start gap-2 rounded-xl border-2 border-[#ec3750] bg-[#fff3cd] px-3 py-2 text-[11px] font-bold text-[#17171d]">
+                <input
+                  type="checkbox"
+                  checked={gateAcknowledged}
+                  onChange={(e) => setGateAcknowledged(e.target.checked)}
+                  className="mt-0.5"
+                />
+                Flagged as high risk- I&apos;ve reviewed it and want to approve anyway
+              </label>
+            )}
+
             <button
               onClick={() => handleStatusUpdate("Approved")}
-              disabled={!activeProject}
+              disabled={!activeProject || approveBlocked}
               className="flex w-full items-center justify-center rounded-xl border-2 border-[#1b7b5d] bg-[#33d6a6] py-3.5 text-sm font-black text-[#17171d] shadow-[0_4px_0_#1b7b5d] transition-all disabled:opacity-50 active:translate-y-1 active:shadow-none hover:bg-[#2bb88e]"
             >
               Approve
