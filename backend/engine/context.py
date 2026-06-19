@@ -160,7 +160,7 @@ async def build_context(
     playable_task = _check_playable(client, str(playable_url))
 
     if owner and repo:
-        repo_meta, commits, readme, root_sha, (p_status, p_body) = await asyncio.gather(
+        repo_meta, commits, readme_text, root_sha, (p_status, p_body) = await asyncio.gather(
             _fetch_repo_meta(client, owner, repo),
             _fetch_commits(client, owner, repo),
             _fetch_readme(client, owner, repo),
