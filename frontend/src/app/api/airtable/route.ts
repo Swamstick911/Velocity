@@ -1,7 +1,4 @@
 import { NextResponse, NextRequest } from "next/server";
-import { dbProvider } from "@/lib/db";
-import { attachReactRefresh } from "next/dist/build/webpack-config";
-import { normalize } from "path";
 
 const AIRTABLE_API_BASE = "https://api.airtable.com/v0";
 export const dynamic = 'force-dynamic';
@@ -22,16 +19,16 @@ function normalizeSubmission(record: any) {
 
     return {
         id: record?.id ?? "",
-        github_url: fields["Github URL"] ?? "",
-        playable_url: fields["Playable URL"] ?? "",
-        target_program: fields["Target Program"] ?? "",
-        status: fields["Status"] ?? "pending",
-        birth_year: fields["Birth Year"] ?? null,
-        description: fields["Description"] ?? "",
-        public_comment: fields["Public Comment"] ?? "",
-        private_comment: fields["Private Comment"] ?? "",
-        hacaktime_hours: fields["Hackatime Hours"] ?? null,
-        hackatime_projects: fields["Hackatime Projects"] ?? [],
+        github_url: fields["GitHub URL"] ?? fields["Github URL"] ?? fields["github_url"] ?? "",
+        playable_url: fields["Playable URL"] ?? fields["playable_url"] ?? "",
+        target_program: fields["Target Program"] ?? fields["target_program"] ?? "Unknown",
+        status: fields["Status"] ?? fields["status"] ?? "pending",
+        birth_year: fields["Birth Year"] ?? fields["birth_year"] ?? null,
+        description: fields["Description"] ?? fields["description"] ?? "",
+        public_comment: fields["Public Comment"] ?? fields["public_comment"] ?? "",
+        private_comment: fields["Private Comment"] ?? fields["private_comment"] ?? "",
+        hackatime_hours: fields["Hackatime Hours"] ?? fields["hackatime_hours"] ?? null,
+        hackatime_projects: fields["Hackatime Projects"] ?? fields["hackatime_projects"] ?? [],
     };
 }
 
@@ -63,7 +60,7 @@ async function fetchAirtableRecords (
 
         throw {
             status: res.status,
-            message: "Faiiled to fetch Airtable queue",
+            message: "Failed to fetch Airtable queue",
             details,
         };
     }
