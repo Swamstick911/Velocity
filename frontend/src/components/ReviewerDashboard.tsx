@@ -860,7 +860,6 @@ export default function ReviewerDashboard() {
   const handleProjectSwitch = (p: Submission) => {
     setTouchGrassMode(false);
     setActiveProject(p);
-    setActiveProject(p);
     setIframeMode("demo");
     setRepoStats(null);
     setPreflight(null);
@@ -1772,11 +1771,11 @@ export default function ReviewerDashboard() {
           </div>
 
           <div className="mx-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">
-            <p className="mb-2 text=[10px] font-black uppercase tracking-widest text-[#8492a6]">
+            <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
               Hackatime
             </p>
 
-            <div className="mb-2 rounded-xl bg-[#252429] px-3 py-2">\
+            <div className="mb-2 rounded-xl bg-[#252429] px-3 py-2">
               <p className="text-[10px] uppercase tracking-widest text-[#8492a6]">
                 Tracked Hours
               </p>
@@ -1850,7 +1849,7 @@ export default function ReviewerDashboard() {
                   Backend URL
                 </p>
                 <p className="truncate text-xs text-white">
-                  {backendUrl || "Missing NEXT_PUBLIC_API_URL"}
+                  {backendUrl || "Missing NEXT_PUBLIC_BACKEND_URL"}
                 </p>
               </div>
             </div>
@@ -1902,7 +1901,7 @@ export default function ReviewerDashboard() {
                         : "bg-[#33d6a6] text-[#17171d]"
                     }`}
                   >
-                    {preflight.risk.tier} . {preflight.risk.score}
+                    {preflight.risk.tier} · {preflight.risk.score}
                   </span>
               </div>
 
@@ -1956,7 +1955,7 @@ export default function ReviewerDashboard() {
                         {i >= COPYPASTAS.length && (
                           <button
                             onClick={() => handleDeleteCustomCopypasta(i - COPYPASTAS.length)}
-                            className="rounded-md px-2 py-1 text-[#8492a6] transition hover: bg-white/5 hover:text-[#ec3750]"
+                            className="rounded-md px-2 py-1 text-[#8492a6] transition hover:bg-white/5 hover:text-[#ec3750]"
                             title="Delete">
                               <XCircle className="h-3 w-3"/>
                             </button>
@@ -1965,7 +1964,7 @@ export default function ReviewerDashboard() {
                   </div>
                   <button
                     onClick={() => handleInsertCopypasta(c)}
-                    className={`w-full rounded-md px-3 py-1.5 text-xs font-black transition ${c.type === "public" ? "bg-[#33d6a6] text-[#17171d] hover:bg-2bb88e" : "bg-ff8c37 text-[#17171d] hover:bg-[#f07b22]"}`}>
+                    className={`w-full rounded-md px-3 py-1.5 text-xs font-black transition ${c.type === "public" ? "bg-[#33d6a6] text-[#17171d] hover:bg-[#2bb88e]" : "bg-[#ff8c37] text-[#17171d] hover:bg-[#f07b22]"}`}>
                       Insert into {c.type === "public" ? "Public" : "Private"}
                     </button>
                 </div>
