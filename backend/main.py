@@ -629,8 +629,10 @@ async def record_submission(payload: SubmissionRecord):
         
     conn = get_db()
     conn.execute("""
-        INSERT OR IGNORE INTO submissions (github_url, program, approved_at)
-        VALUES (?, ?, ?)
+        INSERT OR IGNORE INTO submissions
+            (github_url, program, approved_at, owner, repo,
+             root_commit_sha, hackatime_projects, submitter_username)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (clean_url, payload.program, int(datetime.now().timestamp()),
         owner, repo, root_sha, projects_csv, payload.submitter_username,
     ))
