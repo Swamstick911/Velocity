@@ -1088,10 +1088,10 @@ export default function ReviewerDashboard() {
                     const tableName = airtableTableNameInput.trim()
 
                     await fetch(`${backendUrl}/api/config/save`, {
-                      method: "POST", 
+                      method: "POST",
                       headers: { "Content-Type": "application/json" },
+                      credentials: "include",
                       body: JSON.stringify({
-                        email,
                         airtable_base_id: baseId,
                         airtable_table_name: tableName,
                       }),

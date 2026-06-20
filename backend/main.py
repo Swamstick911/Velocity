@@ -583,12 +583,15 @@ async def logout(request: Request):
 
 @app.post("/api/config/save")
 async def save_config(request: Request):
+    email = request.session.get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Not logged in")
+
     body = await request.json()
-    email = body.get("email")
     base_id = body.get("airtable_base_id")
     table_name = body.get("airtable_table_name")
 
-    if not email or not base_id or not table_name:
+    if not base_id or not table_name:
         raise HTTPException(status_code=400, detail="Missing required fields")
     
     conn = get_db()
