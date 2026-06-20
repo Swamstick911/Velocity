@@ -706,7 +706,7 @@ export default function ReviewerDashboard() {
       const githubUrls = Array.from(
         new Set(
           projects
-            .map((p) => p.github_url?.trim().toLowerCase().replace(/\+$/, ""))
+            .map((p) => p.github_url?.trim().toLowerCase().replace(/\/+$/, ""))
             .filter(Boolean)
         )
       );
@@ -840,7 +840,7 @@ export default function ReviewerDashboard() {
             body: JSON.stringify({
               github_url: activeProject.github_url,
               program: activeProject.target_program,
-              hackatime_hours: normalizeHackatimeProjects(activeProject.hackatime_projects),
+              hackatime_projects: normalizeHackatimeProjects(activeProject.hackatime_projects),
             }),
           });
         } catch (recordErr) {
@@ -983,11 +983,11 @@ export default function ReviewerDashboard() {
   }
 
   if(fetchStatus === "error") {
-    return <DashboardError message={fetchError || "Unknown error"} onRetry={fetchQueue} />;
+    return <DashboardError message={fetchError || "Unknown error"} onRetry={() => fetchQueue()} />;
   }
 
   if(fetchStatus === "success" && queue.length === 0) {
-    return <DashboardEmpty onRefresh={fetchQueue}/>;
+    return <DashboardEmpty onRefresh={() => fetchQueue()}/>;
   }
 
   return (
