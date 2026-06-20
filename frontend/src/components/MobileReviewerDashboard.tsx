@@ -75,6 +75,10 @@ interface MobileReviewerDashboardProps {
   previousSubmissions: PreviousSubmission[];
   historyLoading: boolean;
   queueCount: number;
+  gateBlocked: boolean;
+  approveBlocked: boolean;
+  gateAcknowledged: boolean;
+  setGateAcknowledged: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 function StatusDot({ status }: { status: Submission["status"] }) {
@@ -162,6 +166,10 @@ export default function MobileReviewerDashboard({
   previousSubmissions,
   historyLoading,
   queueCount,
+  gateBlocked,
+  approveBlocked,
+  gateAcknowledged,
+  setGateAcknowledged,
 }: MobileReviewerDashboardProps) {
   const [activeTab, setActiveTab] = useState<MobileTab>("queue");
 
@@ -707,6 +715,17 @@ export default function MobileReviewerDashboard({
       </main>
 
       <footer className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-[#17171d] bg-[#f9d8de] px-4 pb-4 pt-3 shadow-[0_-4px_0_#17171d]">
+        {gateBlocked && (
+          <label className="mb-2 flex items-start gap-2 rounded-xl border-2 border-[#ec3750] bg-[#fff3cd] px-3 py-2 text-[11px] font-bold text-[#17171d]">
+            <input
+              type="checkbox"
+              checked={gateAcknowledged}
+              onChange={(e) => setGateAcknowledged(e.target.checked)}
+              className="mt-0.5"
+            />
+            Flagged as high risk — reviewed, approve anyway.
+          </label>
+        )}
         <div className="grid grid-cols-3 gap-2">
           <button
             onClick={runPreflight}
@@ -718,7 +737,7 @@ export default function MobileReviewerDashboard({
 
           <button
             onClick={() => handleStatusUpdate("Approved")}
-            disabled={!activeProject}
+            disabled={!activeProject || approveBlocked}
             className="rounded-2xl border-2 border-[#080861] bg-[#338eda] px-3 py-3 text-xs font-black text-white shadow-[0_4px_0_#080861] transition active:translate-y-1 active:shadow-none disabled:opacity-50"
           >
             Approve

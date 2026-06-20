@@ -1017,6 +1017,10 @@ export default function ReviewerDashboard() {
           previousSubmissions={previousSubmissions}
           historyLoading={historyLoading}
           queueCount={queue.length}
+          gateBlocked={gateBlocked}
+          approveBlocked={approveBlocked}
+          gateAcknowledged={gateAcknowledged}
+          setGateAcknowledged={setGateAcknowledged}
         />
       </div>
     <div 
