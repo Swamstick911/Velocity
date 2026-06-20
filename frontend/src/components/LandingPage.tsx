@@ -196,7 +196,270 @@ function EngineTeaser() {
         <p className="mt-2 text-[11px] font-bold text-[#8492a6]">
           {showResult ? "Scan complete": "Running 12 checks..."}
         </p>
+
+        {/* signals */}
+        <div className="mt-3 space-y-1.5">
+          {sigs.map((s, i) => (
+            <div
+              key={`${resolved.repo}-${i}`}
+              className="flex items-center justify-between gap-2 rounded-lg bg-[#f7f3ea] px-2 py-1.5"
+              style={{ animation: "lp-row .35s ease-out both" }}
+            >
+              <div className="flex items-center gap-2">
+                {s.ok ? (
+                  <CheckCircle2 className="h-4 w-4 text-[#1aa179]"/>
+                ) : (
+                  <AlertTriangle className="h-4 w-4 text-[#ff8c37]"/>
+                )}
+                <span className="text-xs font-bold text-[#17171d]">{s.label}</span>
+              </div>
+              <span 
+                className="text-[10px] font-bold"
+                style={{ color: s.ok ? "#8492a6" : "#ec3750" }}
+              >
+                {s.note}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* result */}
+        {showResult && (
+          <div className="mt-4 flex items-center justify-between border-t-2 border-dashed border-[#e0e6ed] pt-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
+                Risk score
+              </p>
+              <p 
+                className="text-3xl font-black"
+                style={{
+                  color: resolved.tierColor,
+                  animation: "lp-pop .4s ease-out both",
+                }}
+              >
+                {displayScore}
+              </p>
+            </div>
+            <Stamp color={resolved.tierColor} animate>
+              {resolved.tier}
+            </Stamp>
+          </div>
+        )}
       </div>
     </div>
-  )
+  );
+}
+
+//The "most wanted" lineup
+const LINEUP = [
+  {
+    name: "The Double Dipper",
+    evidence: "Same repo, submitted to 5 different YSWS programs",
+    caught: "normalized-URL + root-commit match",
+    rotate: "-rotate-2",
+    color: "#338eda",
+  },
+  {
+    name: "The AI Slopper",
+    evidence: "2,400 lines of code. One commit. No git history",
+    caught: "commit-cadence heuristics",
+    rotate: "rotate-1",
+    color: "#ff8c37",
+  },
+  {
+    name: "The Ghost Demo",
+    evidence: "Playable link 404s or is a parked Vercel page",
+    caught: "live-URL + placeholder check",
+    rotate: "rotate-2",
+    color: "#9b59ff",
+  },
+  {
+    name: "The time inflator",
+    evidence: "Logged 40 Hackatime hours for 50 lines of code",
+    caught: "hours-vs-code ratio",
+    rotate: "-rotate-1",
+    color: "#33d6a6",
+  },
+];
+
+//Page
+export default function LandingPage() {
+  return (
+    <main
+      style={{ fontFamily: "'Phantom Sans', system-ui, sans-serif" }}
+      className="min-h-screen overflow-x-hidden bg-[#ec3750] text-white"  
+    >
+      <style>{`
+        @keyframes lp-stamp { 0%{opacity:0;transform:scale(1.8) rotate(-18deg);} 60%{opacity:1;transform:scale(.92) rotate(-7deg);} 100%{transform:scale(1) rotate(-6deg);} }
+        @keyframes lp-pop { 0%{opacity:0;transform:scale(.4);} 70%{transform:scale(1.12);} 100%{opacity:1;transform:scale(1);} }
+        @keyframes lp-row { 0%{opacity:0;transform:translateY(10px);} 100%{opacity:1;transform:none;} }
+        @keyframes lp-bob { 0%,100%{transform:translateY(0) rotate(-2deg);} 50%{transform:translateY(-10px) rotate(-2deg);} }
+        @keyframes lp-scan { 0%{transform:translateX(-120%);} 100%{transform:translateX(320%);} }
+        @media (prefers-reduced-motion: reduce){ *{animation:none !important;} }
+      `}</style>
+
+      {/* top bar */}
+      <nav className="flex items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
+        <div className="flex items-center gap-3">
+          <img 
+            src="https://assets.hackclub.com/flag-orpheus-top.png"
+            alt="Hack Club"
+            className="h-12 w-auto sm:h-14"
+          />
+          <div className="leading-none">
+            <span className="text-2xl font-black">Velocity</span>
+            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/70">
+              by Swastik (alb)
+            </p>
+          </div>
+        </div>
+        <Link
+          href="/dashboard"
+          className="rounded-xl border-2 border-[#17171d] bg-[#ffd43b] px-4 py-2 text-sm font-black text-[#17171d]"
+        >
+          Open Dashboard
+        </Link>
+      </nav>
+
+      {/* hero */}
+      <section className="grid items-center gap-10 px-5 pb-16 pt-6 sm:px-8 lg:grid-cols-[1.05fr_0.95fr] lg:gap-6 lg:px-12 lg:pt-10">
+        <div className="max-w-xl">
+          <span className="inline-flex items-center gap-1.5 rounded-full border-2 border-[#17171d] bg-white px-3 py-1 text-xs font-black uppercase tracking-wider text-[#17171d]">
+            <Zap className="h-3.5 w-3.5" /> 12 checks . ~3 seconds
+          </span>
+
+          <h1 className="mt-5 text-5xl font-black leading-[0.95] sm:text-6xl">
+            Catch the cheaters.{" "}
+            <span className="relative inline-block">
+              Ship the real one
+              <RoughUnderline className="absolute -bottom-2 left-0 h-3 w-full"/>
+            </span>
+          </h1>
+
+          <p className="mt-6 text-lg leading-relaxed text-white/95">
+            Velocity pulls every submission from your YSWS Airtable, runs the anti-fraud engine in seconds,
+            and stamps the double-dippers, AI Slop, and dead demos- so you spend less time on the projects that
+            are actually <span className="font-black">real</span>
+          </p>
+
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center gap-2 rounded-xl border-2 border-[#17171d] bg-[#33d6a6] px-6 py-3 text-base font-black text-[#17171d] shadow-[0_5px_0_#17171d] transition active:translate-y-1 active:shadow-none"
+            >
+              Open Dashboard <ArrowRight className="h-4 w-4"/>
+            </Link>
+            <a
+              href="#how"
+              className="rounded-xl border-2 border-white/40 px-6 py-3 text-base font-bold text-white transition hover:border-white"  
+            >
+              See how it works
+            </a>
+          </div>
+        </div>
+
+        <div className="flex justify-center lg:justify-end">
+          <EngineTeaser/>
+        </div>
+      </section>
+
+      {/* the lineup */}
+      <section className="border-t-4 border-[#17171d] bg-[#f3f4ea] px-5 py-16 text-[#17171d] sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-6xl">
+          <h2 className="text-3xl font-black sm:text-4xl">The usual suspects</h2>
+          <p className="mt-2 max-w-xl text-base font-bold text-[#5c6675]">
+            Every YSWS gets them. Velocity sees them all and tells
+          </p>
+
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {LINEUP.map((s) => (
+              <div
+                key={s.name}
+                className={`${s.rotate} rounded-2xl border-4 border-[#17171d] bg-white p-5 shadow-[0_8px_0_#17171d] transition hover:-translate-y-1`}
+              >
+                <div className="mb-3 flex items-start justify-between gap-2">
+                  <h3 className="text-lg font-black leading-tight">{s.name}</h3>
+                  <Stamp color="#ec3750" rotate={8}>
+                    Caught
+                  </Stamp>
+                </div>
+                <p className="text-sm font-medium leading-6 text-[#17171d]">
+                  {s.evidence}
+                </p>
+                <p
+                  className="mt-4 border-t-2 border-dashed border-[#e0e6ed] pt-3 text-[11px] font-black uppercase tracking-wide"
+                  style={{ color: s.color }}
+                >
+                  caught by {s.caught}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* how it works */}
+      <section id="how" className="px-5 py-16 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-6xl">
+          <h2 className="text-3xl font-black sm:text-4xl">Three steps, then you ship</h2>
+
+          <div className="relative mt-12 grid gap-8 lg:grid-cols-3">
+            {[
+              { n: "1", t: "Connect Airtable", d: "Log in with Airtable. Velocity pulls your pending YSWS submissions into a prioritized queue." },
+              { n: "2", t: "Velocity scans", d: "Repo health, commit history, demo, Hackatime, double-dips - 12 checks, scored into a clean / review / flagged tier."},
+              { n: "3", t: "You decide", d: "Demo, code, and stats in one place. Approve or reject - flagged ones make you look twice first." },
+            ].map((step, i) => (
+              <div key={step.n} className="relative">
+                <div className="h-full rounded-2xl border-4 border-[#17171d] bg-[#338eda] p-6 text-white shadow-[0_8px_0_#17171d]">
+                  <span className="inline-flex h-10 w-10 items-center justify-center rounded-full border-2 border-[#17171d] bg-[#ffd43b] text-lg font-black text-[#17171d]">
+                    {step.n}
+                  </span>
+                  <h3 className="mt-4 text-xl font-black">{step.t}</h3>
+                  <p className="mt-2 text-sm leading-6 text-white/90">{step.d}</p>
+                </div>
+                {/* hand drawn arrow to the next card (desktop only) */}
+                {i < 2 && (
+                  <svg
+                    className="absolute -right-7 top-1/2 hidden h-6 w-8 -translate-y-1/2 lg:block"
+                    viewBox="0 0 40 24"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <path d="M2 12 C 14 4, 26 20, 34 12" stroke="#17171d" strokeWidth="3" strokeLinecap="round"/>
+                    <path d="M34 12 L 27 8 M34 12 L 27 17" stroke="#17171d" strokeWidth="3" strokeLinecap="round"/>
+                  </svg>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* footer */}
+      <section className="relative overflow-hidden border-t-4 border-[#17171d] bg-[#17171d] px-5 py-20 text-center sm:px-8">
+        <span className="absolute -left-4 top-6 hidden -rotate-12 rounded-lg border-2 border-white/30 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-white/40 sm:block">
+          as seen by sleep-deprived reviewers
+        </span>
+        <h2 className="mx-auto max-w-2xl text-4xl font-black leading-tight text-white sm:text-5xl">
+          Stop playing detective.{" "}
+          <span className="text-[#33d6a6]">Let Velocity do it</span>
+        </h2>
+        <Link
+          href="/dashboard"
+          className="mt-8 inline-flex items-center gap-2 rounded-xl border-2 border-[#17171d] bg-[#33d6a6] px-7 py-3.5 text-lg font-black text-[#17171d] shadow-[0_5px_0_#0f5e44] transition active:translate-y-1 active:shadow-none"
+        >
+          Open Dashboard <ArrowRight className="h-5 w-5"/>
+        </Link>
+        <p className="mt-8 flex items-center justify-center gap-2 text-sm font-bold text-white/60">
+          made with <span className="text-[#ec3750]">♥</span> at Hack Club
+          <img
+            src="https://assets.hackclub.com/flag-orpheus-top.png"
+            alt=""
+            className="h-6 w-auto"
+            style={{ animation: "lp-bob 5s ease-in-out infinite" }}
+          />
+        </p>
+      </section>
+    </main>
+  );
 }
