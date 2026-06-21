@@ -29,6 +29,7 @@ function normalizeSubmission(record: any) {
         private_comment: fields["Private Comment"] ?? fields["private_comment"] ?? "",
         hackatime_hours: fields["Hackatime Hours"] ?? fields["hackatime_hours"] ?? null,
         hackatime_projects: fields["Hackatime Projects"] ?? fields["hackatime_projects"] ?? [],
+        slack_id: fields["Slack ID"] ?? fields["slack_id"] ?? null,
     };
 }
 

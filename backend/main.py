@@ -34,6 +34,9 @@ AIRTABLE_REDIRECT_URI = os.getenv("AIRTABLE_REDIRECT_URI")
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET", secrets.token_hex(32))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
+SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
+SLACK_API_URL = "https://slack.com/api/chat.postMessage"
+
 CURRENT_YEAR = datetime.now().year
 MIN_BIRTH_YEAR = 1900
 #Minimum realistic age- 13 (COPPA/ Hack club policy)
@@ -172,6 +175,13 @@ class PreviousSubmission(BaseModel):
     github_url: str
     program: str
     approved_at: int | None
+
+class SlackNotify(BaseModel):
+    slack_id: str | None = None
+    decision: str
+    repo: str = ""
+    program: str = ""
+    reason: str | None = None
 
 
 #Helpers
@@ -544,3 +554,45 @@ async def get_history_counts(payload: HistoryCountRequest):
 @app.get("/")
 async def root():
     return {"status": "ok", "message": "Velocity backend is running"}
+
+@app.post("/api/slack/notify")
+async def slack_notify(payload: SlackNotify):
+    """DM the submitter about an approve/reject decision. Never blocks the review:
+    no token / no slack_id / Slack errors all return a soft result"""
+    if not payload.slack_id:
+        return {"ok": False, "skipped": "no_slack_id"}
+    if not SLACK_BOT_TOKEN:
+        logger.warning("Slack notify skipped: SLACK_BOT_TOKEN not set")
+        return {"ok": False, "skipped": "no_token"}
+    
+    repo = payload.repo or "your project"
+    program = payload.program or "the program"
+
+    if payload.decision == "approved":
+        text = f" *{repo}* got approved for *{program}*! Nice work, see you in the next one"
+    else:
+        reason = (payload.reason or "").strip() or "Reach out to your reviewer for details"
+        text = (
+            f"Hey! Your submission *{repo}* for  *{program}* needs another pass:\n\n"
+            f"> {reason}\n\n"
+            f"Patch it up and resubmit!"
+        )
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                SLACK_API_URL,
+                headers={
+                    "Authorization": f"Bearer {SLACK_BOT_TOKEN}",
+                    "Content-Type": "application/json; charset=utf-8",
+                },
+                json={"channel": payload.slack_id, "text": text},
+            )
+        data = resp.json()
+        if not data.get("ok"):
+            logger.warning("Slack notify failed %s", data.get("error"))
+            return {"ok": False, "error": data.get("error")}
+        return {"ok": True}
+    except Exception as e:
+        logger.warning("Slack notify error: %s", e)
+        return {"ok": False, "error": str(e)}

@@ -66,6 +66,7 @@ export interface Submission {
   private_comment: string;
   hackatime_hours: number | string | null;
   hackatime_projects: string[] | string;
+  slack_id?: string | null;
 }
 
 interface RepoStats {
@@ -809,6 +810,11 @@ export default function ReviewerDashboard() {
   const handleStatusUpdate = async (newStatus: string) => {
     if (!activeProject) return;
 
+    if (newStatus === "Rejected" && !publicComment.trim()) {
+      alert("Pick a reason (tap a public copypasta) before rejecting- it gets DM'd to the submitter");
+      return;
+    }
+
     try {
       const res = await fetch("/api/airtable", {
         method: "POST",
@@ -845,6 +851,25 @@ export default function ReviewerDashboard() {
           });
         } catch (recordErr) {
           console.error("Failed to record submissions history", recordErr);
+        }
+      }
+
+      if (backendUrl) {
+        const repoName = activeProject.github_url.split("/").pop() || "your project";
+        try {
+          await fetch(`${backendUrl}/api/slack/notify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              slack_id: activeProject.slack_id ?? null,
+              decision: newStatus === "Approved" ? "approved" : "rejected",
+              repo: repoName,
+              program: activeProject.target_program,
+              reason: publicComment,
+            }),
+          });
+        } catch (slackErr) {
+          console.error("Slack notify failed", slackErr);
         }
       }
 
