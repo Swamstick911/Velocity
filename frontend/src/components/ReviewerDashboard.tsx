@@ -991,46 +991,8 @@ export default function ReviewerDashboard() {
 
   return (
     <>
-      <div className="block lg:hidden">
-        <MobileReviewerDashboard
-          queue={queue}
-          activeProject={activeProject}
-          handleProjectSwitch={handleProjectSwitch}
-          preflight={preflight}
-          repoStats={repoStats}
-          statsLoading={statsLoading}
-          iframeMode={iframeMode}
-          setIframeMode={setIframeMode}
-          fetchRepoStats={fetchRepoStats}
-          handleStatusUpdate={handleStatusUpdate}
-          scanLoading={scanLoading}
-          runPreflight={runPreflight}
-          copied={copied}
-          handleCopy={handleCopy}
-          handleInsertCopypasta={handleInsertCopypasta}
-          copypastas={COPYPASTAS}
-          copypastaFeedback={copypastaFeedback}
-          publicComment={publicComment}
-          privateComment={privateComment}
-          setPublicComment={setPublicComment}
-          setPrivateComment={setPrivateComment}
-          previousSubmissions={previousSubmissions}
-          historyLoading={historyLoading}
-          queueCount={queue.length}
-          gateBlocked={gateBlocked}
-          approveBlocked={approveBlocked}
-          gateAcknowledged={gateAcknowledged}
-          setGateAcknowledged={setGateAcknowledged}
-        />
-      </div>
-    <div 
-      className="hidden lg:flex relative h-screen w-full overflow-hidden"
-      style={{
-        fontFamily: "'Phantom Sans', system-ui, sans-serif",
-        background: "#ec3750",
-      }}>
-          {needsSetup && (
-            <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+      {needsSetup && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
               <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8de] p-5 shadow-[0_10px_0_#17171d]">
                 <div className="mb-4 flex items-center gap-3">
                   <div className="rounded-2xl bg-[#17171d] p-3 text-white">
@@ -1114,7 +1076,7 @@ export default function ReviewerDashboard() {
             </div>
           )}
               {showAirtableGate && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
                   <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8de] p-5 shadow-[0_10px_0_#17171d]">
                     {/* Headers */}
                     <div className="mb-4 flex items-center gap-3">
@@ -1248,6 +1210,44 @@ export default function ReviewerDashboard() {
             </div>
           </div>
         )}
+      <div className="block lg:hidden">
+        <MobileReviewerDashboard
+          queue={queue}
+          activeProject={activeProject}
+          handleProjectSwitch={handleProjectSwitch}
+          preflight={preflight}
+          repoStats={repoStats}
+          statsLoading={statsLoading}
+          iframeMode={iframeMode}
+          setIframeMode={setIframeMode}
+          fetchRepoStats={fetchRepoStats}
+          handleStatusUpdate={handleStatusUpdate}
+          scanLoading={scanLoading}
+          runPreflight={runPreflight}
+          copied={copied}
+          handleCopy={handleCopy}
+          handleInsertCopypasta={handleInsertCopypasta}
+          copypastas={COPYPASTAS}
+          copypastaFeedback={copypastaFeedback}
+          publicComment={publicComment}
+          privateComment={privateComment}
+          setPublicComment={setPublicComment}
+          setPrivateComment={setPrivateComment}
+          previousSubmissions={previousSubmissions}
+          historyLoading={historyLoading}
+          queueCount={queue.length}
+          gateBlocked={gateBlocked}
+          approveBlocked={approveBlocked}
+          gateAcknowledged={gateAcknowledged}
+          setGateAcknowledged={setGateAcknowledged}
+        />
+      </div>
+    <div 
+      className="hidden lg:flex relative h-screen w-full overflow-hidden"
+      style={{
+        fontFamily: "'Phantom Sans', system-ui, sans-serif",
+        background: "#ec3750",
+      }}>
 
         <div
           className="flex w-[220px] shrink-0 flex-col"
