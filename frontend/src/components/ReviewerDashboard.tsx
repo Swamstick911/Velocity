@@ -282,6 +282,11 @@ export default function ReviewerDashboard() {
 
   const [repoStats, setRepoStats] = useState<RepoStats | null>(null);
   const [preflight, setPreflight] = useState<PreflightResponse | null>(null);
+  const [scanResults, setScanResults] = useState<
+    Record<string, { tier: string; score: number; gate: string; result?: PreflightResponse | null }>
+  >({});
+  const [scanningIds, setScanningIds] = useState<Set<string>>(new Set());
+  const [scanProgress, setScanProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
   const [gateAcknowledged, setGateAcknowledged] = useState(false);
 
   const [iframeMode, setIframeMode] = useState<"demo" | "github" | "stats">(
@@ -494,6 +499,14 @@ export default function ReviewerDashboard() {
     ).sort();
   }, [queue]);
 
+  const riskRank = (project: Submission) => {
+    const tier = scanResults[project.id]?.tier;
+    if (tier === "flagged") return 0;
+    if (tier === "review") return 1;
+    if (tier === "clean") return 2;
+    return 3;
+  };
+
   const getQueuePriority = (project: Submission) => {
     const recommendedAction = getRecommendedAction(project);
     const historyCount = getHistoryCountForProject(project);
@@ -522,6 +535,17 @@ export default function ReviewerDashboard() {
       });
     }
 
+    const scanSummary = useMemo(() => {
+      const s = { flagged: 0, review: 0, clean: 0 };
+      for (const p of queue) {
+        const tier = scanResults[p.id]?.tier;
+        if (tier === "flagged") s.flagged++;
+        else if (tier === "review") s.review++;
+        else if (tier === "clean") s.clean++;
+      }
+      return s;
+    }, [queue, scanResults]);
+
     if (statusFilter !== "all") {
       results = results.filter((p) => (p.status || "pending") === statusFilter);
     }
@@ -539,6 +563,12 @@ export default function ReviewerDashboard() {
     }
 
     results.sort((a, b) => {
+      const riskDiff = riskRank(a) - riskRank(b);
+      if (riskDiff !== 0) return riskDiff;
+
+      const scoreDiff = (scanResults[b.id]?.score ?? 0) - (scanResults[a.id]?.score ?? 0);
+      if (scoreDiff !== 0) return scoreDiff;
+
       const priorityDiff = getQueuePriority(a) - getQueuePriority(b);
       if (priorityDiff !== 0) return priorityDiff;
 
@@ -560,7 +590,19 @@ export default function ReviewerDashboard() {
     onlyWithHistory,
     onlyWithHackatime,
     historyCounts,
+    scanResults,
   ]);
+
+  const scanSummary = useMemo(() => {
+    const s = { flagged: 0, review: 0, clean: 0 };
+    for (const p of queue) {
+      const tier = scanResults[p.id]?.tier;
+      if (tier === "flagged") s.flagged++;
+      else if (tier === "review") s.review++;
+      else if (tier === "clean") s.clean++;
+    }
+    return s;
+  }, [queue, scanResults]);
 
   const getGithubHeaders = (): HeadersInit => {
     const headers: HeadersInit = {
@@ -670,6 +712,91 @@ export default function ReviewerDashboard() {
       setScanLoading(false);
     }
   };
+
+  const buildScanPayload = (p: Submission) => {
+    const rawHours = p.hackatime_hours;
+    const hours =
+      rawHours === null || rawHours === undefined || rawHours === ""
+        ? null
+        : Number(rawHours);
+    return {
+      submission_id: p.id,
+      github_url: p.github_url,
+      playable_url: p.playable_url,
+      birth_year: p.birth_year,
+      target_program: p.target_program,
+      hackatime_hours: Number.isNaN(hours as number) ? null : hours,
+      hackatime_projects: normalizeHackatimeProjects(p.hackatime_projects),
+    };
+  };
+
+  const scanOne = async (p: Submission) => {
+    setScanningIds((s) => new Set(s).add(p.id));
+    try {
+      const res = await fetch(`${backendUrl}/api/scan/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildScanPayload(p)),
+      });
+      if (res.ok) {
+        const data: PreflightResponse = await res.json();
+        setScanResults((prev) => ({
+          ...prev,
+          [p.id]: { tier: data.risk.tier, score: data.risk.score, gate: data.risk.gate, result: data },
+        }));
+      }
+    } catch (err) {
+      console.error("Scan failed for", p.id, err);
+    } finally {
+      setScanningIds((s) => {
+        const n = new Set(s);
+        n.delete(p.id);
+        return n;
+      });
+      setScanProgress((prev) => ({ ...prev, done: prev.done + 1 }));
+    }
+  };
+
+  const runTriageScan = async (projects: Submission[], force = false) => {
+    if (!backendUrl || !projects.length) return;
+    const ids = projects.map((p) => p.id).filter(Boolean);
+    
+    let staleIds = ids;
+    if (!force) {
+      try {
+        const res = await fetch(`${backendUrl}/api/scan/results`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setScanResults((prev) => ({ ...prev, ...data.results }));
+          staleIds = data.stale || [];
+        }
+      } catch (err) {
+        console.error("Cached scan lookup failed", err);
+      }
+    }
+
+    const toScan = projects.filter((p) => staleIds.includes(p.id));
+    setScanProgress({ done: 0, total: toScan.length });
+
+    let idx = 0;
+    const worker = async () => {
+      while (idx < toScan.length) {
+        const cur = toScan[idx++];
+        await scanOne(cur);
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+  };
+
+  useEffect(() => {
+    if(queue.length > 0) {
+      void runTriageScan(queue);
+    }
+  }, [queue]);
 
   const fetchPreviousSubmissions = async (githubUrl: string) => {
     if(!backendUrl || !githubUrl) {
@@ -887,7 +1014,7 @@ export default function ReviewerDashboard() {
     setActiveProject(p);
     setIframeMode("demo");
     setRepoStats(null);
-    setPreflight(null);
+    setPreflight(scanResults[p.id]?.result ?? null);
     setGateAcknowledged(false);
     setPublicComment(p.public_comment || "");
     setPrivateComment(p.private_comment || "");
@@ -1403,10 +1530,27 @@ export default function ReviewerDashboard() {
             </div>
           </div>
 
-          <p className="mb-1 px-4 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
-            Prioritized Queue ({filteredQueue.length})
-          </p>
+          <div>
+            <p className="mb-1 px-4 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
+              Prioritized Queue ({filteredQueue.length})
+            </p>
+            <button
+              onClick={() => runTriageScan(queue, true)}
+              disabled={!backendUrl || !queue.length || scanProgress.done < scanProgress.total}
+              className="rounded-full bg-[#17171d] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white disabled:opacity-40"
+            >
+              {scanProgress.total > 0 && scanProgress.done < scanProgress.total
+                ? `Scanning... ${scanProgress.done}/${scanProgress.total}`
+                : "Rescan all"}
+            </button>
+          </div>
 
+          <div className="mb-2 flex flex-wrap gap-1.5 px-4 text-[9px] font-black uppercase tracking-widest">
+            <span className="rounded-full bg-[#ec3750] px-2 py-0.5 text-white">{scanSummary.flagged} flagged</span>
+            <span className="rounded-full bg-[#ff8c37] px-2 py-0.5 text-white">{scanSummary.review} review</span>
+            <span className="rounded-full bg-[#33d6a6] px-2 py-0.5 text-[#17171d]">{scanSummary.clean} clean</span>
+          </div>
+          
           {queueError && (
             <div className="mx-3 mb-2 rounded-xl border border-[#ff8c37] bg-[#fff3cd] px-3 py-2">
               <p className="text-[10px] font-black uppercase tracking-wide text-[#ff8c37]">
@@ -1451,6 +1595,25 @@ export default function ReviewerDashboard() {
                     </div>
 
                     <div className="mt-2 pl-4 flex flex-wrap gap-1.5">
+                      {scanningIds.has(p.id) ? (
+                        <span className="animate-pulse rounded-full bg-[#e0e6ed] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#8492a6]">
+                          Scanning…
+                        </span>
+                      ) : scanResults[p.id] ? (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-widest"
+                          style={{
+                            background:
+                              scanResults[p.id]?.tier === "flagged" ? "#ec3750"
+                              : scanResults[p.id]?.tier === "review" ? "#ff8c37"
+                              : "#33d6a6",
+                            color: scanResults[p.id]?.tier === "flagged" ? "#fff" : "#17171d",
+                          }}
+                        >
+                          {scanResults[p.id]?.tier} · {scanResults[p.id]?.score}
+                        </span>
+                      ) : null}
+
                       {historyCount > 0 && (
                         <span className="rounded-full bg-[#17171d] px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-white">
                           History {historyCount}
