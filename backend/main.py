@@ -8,6 +8,7 @@ import hashlib
 import base64
 from datetime import datetime
 from contextlib import asynccontextmanager
+import json
 
 from fastapi.responses import RedirectResponse
 from fastapi import FastAPI, HTTPException, Request
@@ -36,6 +37,7 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_API_URL = "https://slack.com/api/chat.postMessage"
+SCAN_TTL_SECONDS = 24 * 3600
 
 CURRENT_YEAR = datetime.now().year
 MIN_BIRTH_YEAR = 1900
@@ -69,7 +71,17 @@ def init_db():
             program TEXT NOT NULL,
             approved_at INTEGER,
             PRIMARY KEY(github_url, program)
-        );         
+        );
+        
+        CREATE TABLE IF NOT EXISTS scan_results (
+            submission_id TEXT PRIMARY KEY,
+            github_url TEXT,
+            tier TEXT,
+            score INTEGER,
+            gate TEXT,
+            result_json TEXT,
+            scanned_at INTEGER
+        );
     """)
     try:
         conn.execute("ALTER TABLE reviewers ADD COLUMN airtable_base_id TEXT")
@@ -200,6 +212,37 @@ def parse_github_repo(github_url: str) -> tuple[str, str] | None:
     repo = match.group(2)
     return owner, repo
 
+def _build_preflight_response(signals, risk) -> PreflightResponse:
+    by_id = {s["id"]: s for s in signals}
+
+    def _check(sig):
+        if not sig:
+            return CheckResult(passed=True, detail="Not checked")
+        passed = sig["status"] in ("pass", "insufficient_data")
+        return CheckResult(passed=passed, detail=sig["detail"])
+
+    fraud_vectors = {"ai_slop", "double_dip", "hour_inflation"}
+    fraud_hits = [s for s in signals if s["vector"] in fraud_vectors and s["status"] in ("warn", "fail")]
+    if fraud_hits:
+        worst = max(fraud_hits, key=lambda s: s["score"])
+        anti_fraud_check = CheckResult(passed=False, detail=worst["detail"])
+    else:
+        anti_fraud_check = CheckResult(passed=True, detail="No fraud signals detected")
+
+    flags = [s["detail"] for s in signals if s["status"] in ("warn", "fail")]
+
+    return PreflightResponse(
+        overall_passed=risk["tier"] == "clean",
+        birth_year_check=_check(by_id.get("eligibility_birth_year")),
+        playable_url_check=_check(by_id.get("reachability_playable_url")),
+        readme_check=_check(by_id.get("readme_quality")),
+        anti_fraud_check=anti_fraud_check,
+        flags=flags,
+        risk=RiskReport(
+            tier=risk["tier"], score=risk["score"], gate=risk["gate"], by_vector=risk["by_vector"], signals=signals,
+        ),
+    )
+
 #Endpoint
 @app.post("/api/v1/preflight", response_model=PreflightResponse)
 async def run_preflight(payload: PreflightRequest):
@@ -231,42 +274,91 @@ async def run_preflight(payload: PreflightRequest):
     result = evaluate(ctx)
     signals = result["signals"]
     risk = result["risk"]
-    by_id = {s["id"]: s for s in signals}
-
-    def _check(sig):
-        if not sig:
-            return CheckResult(passed=True, detail="Not checked")
-        passed = sig["status"] in ("pass", "insufficient_data")
-        return CheckResult(passed=passed, detail=sig["detail"])
-    fraud_vectors = {"ai_slop", "double_dip", "hour_inflation"}
-    fraud_hits = [s for s in signals if s["vector"] in fraud_vectors and s["status"] in ("warn", "fail")]
-    if fraud_hits:
-        worst = max(fraud_hits, key=lambda s: s["score"])
-        anti_fraud_check = CheckResult(passed=False, detail=worst["detail"])
-    else:
-        anti_fraud_check = CheckResult(passed=True, detail="No fraud signals detected")
-
-    flags = [s["detail"] for s in signals if s["status"] in ("warn", "fail")]
+    
     logger.info(
-        "Preflight done | repo=%s/%s | tier=%s | score=%d | flags=%d",
-        owner, repo, risk["tier"], risk["score"], len(flags),
+        "Preflight done | repo=%s/%s | tier=%s | score=%d",
+        owner, repo, risk["tier"], risk["score"],
     )
+    return _build_preflight_response(signals, risk)
 
-    return PreflightResponse(
-        overall_passed=risk["tier"] == "clean",
-        birth_year_check=_check(by_id.get("eligibility_birth_year")),
-        playable_url_check=_check(by_id.get("reachability_playable_url")),
-        readme_check=_check(by_id.get("readme_quality")),
-        anti_fraud_check=anti_fraud_check,
-        flags=flags,
-        risk=RiskReport(
-            tier=risk["tier"],
-            score=risk["score"],
-            gate=risk["gate"],
-            by_vector=risk["by_vector"],
-            signals=signals,
-        ),
+class ScanRunRequest(BaseModel):
+    submission_id: str
+    github_url: HttpUrl
+    playable_url: HttpUrl
+    birth_year: int | None = None
+    target_program: str = "Unknown YSWS"
+    hackatime_hours: float | None = None
+    hackatime_projects: list[str] | None = None
+
+@app.post("/api/scan/run", response_model=PreflightResponse)
+async def scan_run(payload: ScanRunRequest):
+    """Scan one submission and cache the result (powers the triage queue)"""
+    parsed = parse_github_repo(str(payload.github_url))
+    if not parsed:
+        raise HTTPException(status_code=422, detail="Could not parse GitHub owner/repo")
+    
+    ctx = await build_context(
+        app.state.http_client,
+        get_db,
+        github_url=str(payload.github_url),
+        playable_url=str(payload.playable_url),
+        target_program=payload.target_program,
+        birth_year=payload.birth_year,
+        hackatime_hours=payload.hackatime_hours,
+        hackatime_projects=payload.hackatime_projects,
     )
+    result = evaluate(ctx)
+    risk = result["risk"]
+    response = _build_preflight_response(result["signals"], risk)
+    
+    conn = get_db()
+    conn.execute("""
+        INSERT INTO scan_results
+            (submission_id, github_url, tier, score, gate, result_json, scanned_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(submission_id) DO UPDATE SET
+            github_url=excluded.github_url, tier=excluded.tier, score=excluded.score,
+            gate=excluded.gate, result_json=excluded.result_json, scanned_at=excluded.scanned_at
+    """, (
+        payload.submission_id, str(payload.github_url), risk["tier"], risk["score"],
+        risk["gate"], response.model_dump_json(), int(datetime.now().timestamp()),
+    ))
+    conn.commit()
+    conn.close()
+    return response
+
+class ScanResultRequest(BaseModel):
+    ids: list[str]
+
+@app.post("/api/scan/results")
+async def scan_results(payload: ScanResultRequest):
+    """Return cached scans still within the TTL + which ids are stale/missing"""
+    if not payload.ids:
+        return {"results": {}, "stale": []}
+    
+    cutoff = int(datetime.now().timestamp()) - SCAN_TTL_SECONDS
+    placeholders = ",".join(["?"] * len(payload.ids))
+    conn = get_db()
+    rows = conn.execute(
+        f"""SELECT submission_id, tier, score, gate, result_json, scanned_at
+            FROM scan_results WHERE submission_id IN ({placeholders})""",
+        payload.ids,
+    ).fetchall()
+    conn.close()
+
+    results = {}
+    fresh = set()
+    for row in rows:
+        if row["scanned_at"] and row["scanned_at"] >= cutoff:
+            results[row["submission_id"]] = {
+                "tier": row["tier"],
+                "score": row["score"],
+                "gate": row["gate"],
+                "result": json.loads(row["result_json"]) if row["result_json"] else None,
+            }
+            fresh.add(row["submission_id"])
+    stale = [i for i in payload.ids if i not in fresh]
+    return {"results": results, "stale": stale}
 
 #Health Check
 @app.get("/health")
