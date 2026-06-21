@@ -1107,106 +1107,113 @@ export default function ReviewerDashboard() {
                           Login with Airtable
                       </button>
 
-                      {/* Divider */}
-                      <div className="my-4 flex items-center gap-3">
-                        <div className="flex-1 border-t border-[#17171d]/20" />
-                        <span className="text-xs font-bold text-[#8492a6]">
-                          or enter manually
-                        </span>
-                        <div className="flex-1 border-t border-[#17171d]/20" />
-                      </div>
+                      <p className="mt-3 text-center text-xs font-medium text-[#17171d]/60 lg:hidden">
+                        Reviewing on mobile? Just log in- we&apos;ll load the base you set up on desktop.
+                      </p>
 
-                      {/* Manual Input */}
-                      <div className="space-y-3">
-                        <label className="block">
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <Mail className="h-3.5 w-3.5 text-[#8492a6]"/>
-                            <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
-                              Email Address
-                            </span>
-                          </div>
-                          <input
-                            type="email"
-                            value={emailInput}
-                            onChange={e => setEmailInput(e.target.value)}
-                            placeholder="reviewer@hackclub.com"
-                            className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]" />
-                        </label>
+                      {/* Manual Entry is desktop-only, mobile uses OAuth + saved config */}
+                      <div className="hidden lg:block">
+                        {/* Divider */}
+                        <div className="my-4 flex items-center gap-3">
+                          <div className="flex-1 border-t border-[#17171d]/20" />
+                          <span className="text-xs font-bold text-[#8492a6]">
+                            or enter manually
+                          </span>
+                          <div className="flex-1 border-t border-[#17171d]/20" />
+                        </div>
 
-                        <label className="block">
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <Key className="h-3.5 w-3.5 text-[#8492a6]" />
-                            <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
-                              Airtable API Token
-                            </span>
-                          </div>
-                          <input 
-                            type="password"
-                            value={airtableTokenInput}
-                            onChange={e => setAirtableTokenInput(e.target.value)}
-                            placeholder="pat.xxxxxx"
-                            className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"/>
-                        </label>
+                        {/* Manual Input */}
+                        <div className="space-y-3">
+                          <label className="block">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <Mail className="h-3.5 w-3.5 text-[#8492a6]"/>
+                              <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                                Email Address
+                              </span>
+                            </div>
+                            <input
+                              type="email"
+                              value={emailInput}
+                              onChange={e => setEmailInput(e.target.value)}
+                              placeholder="reviewer@hackclub.com"
+                              className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]" />
+                          </label>
 
-                        <label className="block">
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <Database className="h-3.5 w-3.5 text-[#8492a6]" />
-                            <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
-                              Airtable Base ID
-                            </span>
-                          </div>
-                          <input
-                            type="text"
-                            value={airtableBaseIdInput}
-                            onChange={e => setAirtableBaseIdInput(e.target.value)}
-                            placeholder="appXXXXXXXXXXXXXX"
-                            className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"/>
-                        </label>
+                          <label className="block">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <Key className="h-3.5 w-3.5 text-[#8492a6]" />
+                              <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                                Airtable API Token
+                              </span>
+                            </div>
+                            <input 
+                              type="password"
+                              value={airtableTokenInput}
+                              onChange={e => setAirtableTokenInput(e.target.value)}
+                              placeholder="pat.xxxxxx"
+                              className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"/>
+                          </label>
 
-                        <label className="block">
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <Database className="h-3.5 w-3.5 text-[#8492a6]" />
-                            <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
-                              Airtable Table Name
-                            </span>
-                          </div>
-                          <input
-                            type="text"
-                            value={airtableTableNameInput}
-                            onChange={e => setAirtableTableNameInput(e.target.value)}
-                            placeholder="Submissions"
-                            className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
-                          />
-                        </label>
+                          <label className="block">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <Database className="h-3.5 w-3.5 text-[#8492a6]" />
+                              <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                                Airtable Base ID
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              value={airtableBaseIdInput}
+                              onChange={e => setAirtableBaseIdInput(e.target.value)}
+                              placeholder="appXXXXXXXXXXXXXX"
+                              className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"/>
+                          </label>
 
-                        <label className="block">
-                          <div className="mb-1 flex items-center gap-1.5">
-                            <Key className="h-3.5 w-3.5 text-[#8492a6]" />
-                            <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
-                              GitHub API Key
-                            </span>
-                          </div>
-                          <input
-                            type="password"
-                            value={githubApiKeyInput}
-                            onChange={e => setGithubApiKeyInput(e.target.value)}
-                            placeholder="Optional"
-                            className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
-                          />
-                        </label>
-                      </div>
-              {configError && (
-                <div className="mt-3 rounded-xl border border-[#7e0630] bg-[#ec3750]/10 px-3 py-2 text-sm font-medium text-[#7e0630]">
-                  {configError}
-                </div>
-              )}
+                          <label className="block">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <Database className="h-3.5 w-3.5 text-[#8492a6]" />
+                              <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                                Airtable Table Name
+                              </span>
+                            </div>
+                            <input
+                              type="text"
+                              value={airtableTableNameInput}
+                              onChange={e => setAirtableTableNameInput(e.target.value)}
+                              placeholder="Submissions"
+                              className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
+                            />
+                          </label>
 
-              <button
-                onClick={handleEnterDashboard}
-                className="mt-4 flex w-full items-center justify-center rounded-xl border-2 border-[#080861] bg-[#338eda] py-3 text-sm font-black text-white shadow-[0_4px_0_#080861] transition-all active:translate-y-1 active:shadow-none"
-              >
-                Continue to Dashboard
-              </button>
+                          <label className="block">
+                            <div className="mb-1 flex items-center gap-1.5">
+                              <Key className="h-3.5 w-3.5 text-[#8492a6]" />
+                              <span className="text-[11px] font-black uppercase tracking-wider text-[#8492a6]">
+                                GitHub API Key
+                              </span>
+                            </div>
+                            <input
+                              type="password"
+                              value={githubApiKeyInput}
+                              onChange={e => setGithubApiKeyInput(e.target.value)}
+                              placeholder="Optional"
+                              className="w-full rounded-xl border border-[#17171d]/15 bg-white px-3 py-3 text-sm text-[#17171d] outline-none focus:border-[#ec3750]"
+                            />
+                          </label>
+                        </div>
+                {configError && (
+                  <div className="mt-3 rounded-xl border border-[#7e0630] bg-[#ec3750]/10 px-3 py-2 text-sm font-medium text-[#7e0630]">
+                    {configError}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleEnterDashboard}
+                  className="mt-4 flex w-full items-center justify-center rounded-xl border-2 border-[#080861] bg-[#338eda] py-3 text-sm font-black text-white shadow-[0_4px_0_#080861] transition-all active:translate-y-1 active:shadow-none"
+                >
+                  Continue to Dashboard
+                </button>
+              </div>
             </div>
           </div>
         )}
