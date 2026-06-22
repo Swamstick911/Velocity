@@ -1397,7 +1397,7 @@ export default function ReviewerDashboard() {
       }}>
 
         <div
-          className="flex w-[220px] shrink-0 flex-col"
+          className="flex w-[220px] shrink-0 flex-col overflow-y-auto themed-scroll"
           style={{ background: "#f9d8de", borderRight: "2px solid #ec3750" }}
         >
           <div className="relative flex h-20 items-center justify-end border-b border-[#ec3750]/30 p-3 pb-2">
@@ -1550,7 +1550,7 @@ export default function ReviewerDashboard() {
             </div>
           )}
 
-          <div className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
+          <div className="space-y-1.5 px-3 pb-3">
             {pageLoading ? (
               <div className="rounded-xl bg-white/70 px-3 py-3 text-xs font-bold text-[#8492a6]">
                 Loading queue...
@@ -1642,6 +1642,8 @@ export default function ReviewerDashboard() {
             )}
           </div>
 
+          <div className="flex-1" />
+
           <button
             onClick={() => {
               setTouchGrassMode(true);
@@ -1655,7 +1657,7 @@ export default function ReviewerDashboard() {
               setCopypastaFeedback(null);
               setIframeMode("demo");
             }}
-            className="rounded-xl border-2 border-[#17171d] bg-[#33d6a6] px-3 py-2 text-xs font-black text-[#17171d] shadow-[0_3px_0_#17171d] shadow-[0_3px_0_#17171d] transition-all active:translate-y-1 active:shadow-none">
+            className="mx-3 mb-3 rounded-xl border-2 border-[#17171d] bg-[#33d6a6] px-3 py-2 text-xs font-black text-[#17171d] shadow-[0_3px_0_#17171d] transition-all active:translate-y-1 active:shadow-none">
               Touch Grass
           </button>
         </div>
