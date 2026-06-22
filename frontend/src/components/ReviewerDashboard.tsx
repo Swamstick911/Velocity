@@ -535,17 +535,6 @@ export default function ReviewerDashboard() {
       });
     }
 
-    const scanSummary = useMemo(() => {
-      const s = { flagged: 0, review: 0, clean: 0 };
-      for (const p of queue) {
-        const tier = scanResults[p.id]?.tier;
-        if (tier === "flagged") s.flagged++;
-        else if (tier === "review") s.review++;
-        else if (tier === "clean") s.clean++;
-      }
-      return s;
-    }, [queue, scanResults]);
-
     if (statusFilter !== "all") {
       results = results.filter((p) => (p.status || "pending") === statusFilter);
     }
@@ -1080,8 +1069,7 @@ export default function ReviewerDashboard() {
         )
     : "";
 
-  const normalizeHackatimeProjects = (value: string[] | string | null | undefined):
-  string[] => {
+  function normalizeHackatimeProjects(value: string[] | string | null | undefined): string[] {
     if (Array.isArray(value)) return value.filter(Boolean);
 
     if (typeof value === "string") {
@@ -1094,14 +1082,14 @@ export default function ReviewerDashboard() {
     return [];
   };
 
-  const getHistoryCountForProject = (project: Submission) => {
+  function getHistoryCountForProject(project: Submission) {
     if (!project.github_url) return 0;
 
     const cleanUrl = project.github_url.toLowerCase().replace(/\/+$/, "");
     return historyCounts[cleanUrl] ?? 0;
   }
 
-  const getHackatimePresence = (project: Submission) => {
+  function getHackatimePresence(project: Submission) {
     const hasHours =
       project.hackatime_hours !== null &&
       project.hackatime_hours !== "" &&
@@ -1111,7 +1099,7 @@ export default function ReviewerDashboard() {
     return hasHours || hasProjects
   }
 
-  const getRecommendedAction = (project: Submission) => {
+  function getRecommendedAction(project: Submission) {
     const historyCount = getHistoryCountForProject(project)
     const hasHackatime = getHackatimePresence(project)
 
