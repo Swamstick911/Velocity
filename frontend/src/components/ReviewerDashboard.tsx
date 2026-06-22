@@ -1240,8 +1240,8 @@ export default function ReviewerDashboard() {
                         `${backendUrl}/api/auth/login`;
                       }}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#17171d] bg-[#ffb703] py-3.5 text-sm font-black text-[#17171d] shadow-[0_4px_0_#17171d] transition-all active:translate-y-1 active:shadow-none">
-                        <img 
-                          src="https://analytics.twitter.com/i/adsct?txn_id=l6gpl&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"
+                        <img
+                          src="https://www.vectorlogo.zone/logos/airtable/airtable-icon.svg"
                           className="h-4 w-4"
                           alt="Airtable"/>
                           Login with Airtable
