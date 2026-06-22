@@ -299,7 +299,7 @@ export default function LandingPage() {
       `}</style>
 
       {/* top bar */}
-      <nav className="flex items-center justify-between px-5 py-4 sm:px-8 lg:px-12">
+      <nav className="flex items-center justify-between px-5 pb-4 sm:px-8 lg:px-12">
         <div className="flex items-center gap-3">
           <img 
             src="https://assets.hackclub.com/flag-orpheus-top.png"
@@ -453,7 +453,7 @@ export default function LandingPage() {
         <p className="mt-8 flex items-center justify-center gap-2 text-sm font-bold text-white/60">
           made with <span className="text-[#ec3750]">♥</span> at Hack Club
           <img
-            src="https://assets.hackclub.com/flag-orpheus-top.png"
+            src="https://assets.hackclub.com/icon-rounded.png"
             alt=""
             className="h-6 w-auto"
             style={{ animation: "lp-bob 5s ease-in-out infinite" }}
