@@ -535,6 +535,17 @@ export default function ReviewerDashboard() {
       });
     }
 
+    const scanSummary = useMemo(() => {
+      const s = { flagged: 0, review: 0, clean: 0 };
+      for (const p of queue) {
+        const tier = scanResults[p.id]?.tier;
+        if (tier === "flagged") s.flagged++;
+        else if (tier === "review") s.review++;
+        else if (tier === "clean") s.clean++;
+      }
+      return s;
+    }, [queue, scanResults]);
+
     if (statusFilter !== "all") {
       results = results.filter((p) => (p.status || "pending") === statusFilter);
     }
@@ -1069,7 +1080,8 @@ export default function ReviewerDashboard() {
         )
     : "";
 
-  function normalizeHackatimeProjects(value: string[] | string | null | undefined): string[] {
+  const normalizeHackatimeProjects = (value: string[] | string | null | undefined):
+  string[] => {
     if (Array.isArray(value)) return value.filter(Boolean);
 
     if (typeof value === "string") {
@@ -1082,14 +1094,14 @@ export default function ReviewerDashboard() {
     return [];
   };
 
-  function getHistoryCountForProject(project: Submission) {
+  const getHistoryCountForProject = (project: Submission) => {
     if (!project.github_url) return 0;
 
     const cleanUrl = project.github_url.toLowerCase().replace(/\/+$/, "");
     return historyCounts[cleanUrl] ?? 0;
   }
 
-  function getHackatimePresence(project: Submission) {
+  const getHackatimePresence = (project: Submission) => {
     const hasHours =
       project.hackatime_hours !== null &&
       project.hackatime_hours !== "" &&
@@ -1099,7 +1111,7 @@ export default function ReviewerDashboard() {
     return hasHours || hasProjects
   }
 
-  function getRecommendedAction(project: Submission) {
+  const getRecommendedAction = (project: Submission) => {
     const historyCount = getHistoryCountForProject(project)
     const hasHackatime = getHackatimePresence(project)
 
@@ -1536,7 +1548,7 @@ export default function ReviewerDashboard() {
           <div className="mb-2 flex flex-wrap gap-1.5 px-4 text-[9px] font-black uppercase tracking-widest">
             <span className="rounded-full bg-[#ec3750] px-2 py-0.5 text-white">{scanSummary.flagged} flagged</span>
             <span className="rounded-full bg-[#ff8c37] px-2 py-0.5 text-white">{scanSummary.review} review</span>
-            <span className="rounded-full bg-[#33d6a6] px-2 py-0.5 text-[#17171d]">{scanSummary.clean} clean</span>
+            <span className="rounded-full bg-[#33d6a6] px-2 py-0.5 text-[#17171d]">{scanSummary.clean} clean</span>                                                                                                   
           </div>
           
           {queueError && (
@@ -1888,7 +1900,7 @@ export default function ReviewerDashboard() {
           </div>
         </div>
 
-        <div className="flex w-[260px] shrink-0 flex-col border-l-2 border-[#ec3750] bg-[#f9d8de]">
+        <div className="flex w-[260px] shrink-0 flex-col overflow-y-auto themed-scroll border-l-2 border-[#ec3750] bg-[#f9d8de]">
           <div className="m-3 mb-2 rounded-2xl bg-[#17171d] p-3 text-white">
             <p className="mb-2 text-[10px] font-black uppercase tracking-widest text-[#8492a6]">
               User Dossier
