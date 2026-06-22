@@ -1241,7 +1241,7 @@ export default function ReviewerDashboard() {
                       }}
                       className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#17171d] bg-[#ffb703] py-3.5 text-sm font-black text-[#17171d] shadow-[0_4px_0_#17171d] transition-all active:translate-y-1 active:shadow-none">
                         <img 
-                          src="https://w7.pngwing.com/pngs/748/184/png-transparent-airtable-logo-thumbnail-tech-companies.png"
+                          src="https://analytics.twitter.com/i/adsct?txn_id=l6gpl&p_id=Twitter&tw_sale_amount=0&tw_order_quantity=0"
                           className="h-4 w-4"
                           alt="Airtable"/>
                           Login with Airtable
