@@ -535,17 +535,6 @@ export default function ReviewerDashboard() {
       });
     }
 
-    const scanSummary = useMemo(() => {
-      const s = { flagged: 0, review: 0, clean: 0 };
-      for (const p of queue) {
-        const tier = scanResults[p.id]?.tier;
-        if (tier === "flagged") s.flagged++;
-        else if (tier === "review") s.review++;
-        else if (tier === "clean") s.clean++;
-      }
-      return s;
-    }, [queue, scanResults]);
-
     if (statusFilter !== "all") {
       results = results.filter((p) => (p.status || "pending") === statusFilter);
     }
