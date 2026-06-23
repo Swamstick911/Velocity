@@ -62,14 +62,14 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 You could `cd` to your `backend/.env` file and then fill out these
 
-AIRTABLE_CLIENT_ID=...
-AIRTABLE_CLIENT_SECRET=...
-AIRTABLE_REDIRECT_URI=https://<backend-host>/api/auth/callback
-FRONTEND_URL=https://<frontend-host>
-ALLOWED_ORIGINS=https://<frontend-host>
-SESSION_SECRET=``<run: python -c "import secrets; print(secrets.token_hex(32))">``
-SLACK_BOT_TOKEN=xoxb-...   optional- turns on approve/reject DMs
-GITHUB_TOKEN=ghp_...       optional- GitHub rate-limits you like an overprotective
+- AIRTABLE_CLIENT_ID=...
+- AIRTABLE_CLIENT_SECRET=...
+- AIRTABLE_REDIRECT_URI=https://<backend-host>/api/auth/callback
+- FRONTEND_URL=https://<frontend-host>
+- ALLOWED_ORIGINS=https://<frontend-host>
+- SESSION_SECRET=``<run: python -c "import secrets; print(secrets.token_hex(32))">``
+- SLACK_BOT_TOKEN=xoxb-...   optional- turns on approve/reject DMs
+- GITHUB_TOKEN=ghp_...       optional- GitHub rate-limits you like an overprotective
                            parent (60/hr)m a token chills it out to 5000/hr
 
 ### 3. frontend
