@@ -91,6 +91,10 @@ def init_db():
         conn.execute("ALTER TABLE reviewers ADD COLUMN airtable_table_name TEXT")
     except:
         pass
+    try:
+        conn.execute("ALTER TABLE reviewers ADD COLUMN column_mapping TEXT")
+    except:
+        pass
 
     #Anti fraud fingerprint columns on submissions (migrate older DBs)
     for col in ("owner", "repo", "root_commit_sha", "hackatime_projects", "submitter_username"):
@@ -511,6 +515,7 @@ async def get_config(request: Request):
         "airtable_access_token": access_token,
         "airtable_base_id": row["airtable_base_id"],
         "airtable_table_name": row["airtable_table_name"],
+        "column_mapping": json.loads(row["column_mapping"]) if row["column_mapping"] else None,
     }
 
 @app.post("/api/auth/logout")
@@ -527,6 +532,7 @@ async def save_config(request: Request):
     body = await request.json()
     base_id = body.get("airtable_base_id")
     table_name = body.get("airtable_table_name")
+    column_mapping = body.get("column_mapping")
 
     if not base_id or not table_name:
         raise HTTPException(status_code=400, detail="Missing required fields")
@@ -534,9 +540,11 @@ async def save_config(request: Request):
     conn = get_db()
     conn.execute("""
         UPDATE reviewers
-        SET airtable_base_id = ?, airtable_table_name = ?
+        SET airtable_base_id = ?, airtable_table_name = ?, column_mapping = ?
         WHERE email = ?
-    """, (base_id, table_name, email))
+    """, (base_id, table_name,
+          json.dumps(column_mapping) if column_mapping is not None else None,
+          email))
     conn.commit()
     conn.close()
 
