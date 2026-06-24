@@ -289,6 +289,13 @@ export default function ReviewerDashboard() {
   const [scanProgress, setScanProgress] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
   const [gateAcknowledged, setGateAcknowledged] = useState(false);
 
+  // --- Column mapping (auto-detect + confirm) ---
+  const [columnMapping, setColumnMapping] = useState<Record<string, string | null> | null>(null);
+  const [availableColumns, setAvailableColumns] = useState<string[]>([]);
+  const [usingHackatime, setUsingHackatime] = useState(false);
+  const [showColumnModal, setShowColumnModal] = useState(false);
+  const [draftMapping, setDraftMapping] = useState<Record<string, string | null>>({});
+
   const [iframeMode, setIframeMode] = useState<"demo" | "github" | "stats">(
     "demo"
   );
@@ -391,6 +398,8 @@ export default function ReviewerDashboard() {
             airtableToken: resolvedToken,
             airtableBaseId: resolvedBaseId,
             airtableTableName: resolvedTableName,
+            columnMapping: columnMapping ?? undefined,
+            usingHackatime,
           }),
           cache: "no-store",
         });
@@ -407,6 +416,15 @@ export default function ReviewerDashboard() {
         }
 
         const data = await res.json();
+
+        if (Array.isArray(data?.columns)) setAvailableColumns(data.columns);
+
+        // First load with no confirmed mapping: show what we detected so the
+        // reviewer can confirm/override before trusting the queue.
+        if (!columnMapping && data?.columnMapping) {
+          setDraftMapping(data.columnMapping);
+          setShowColumnModal(true);
+        }
 
         const nextQueue: Submission[] = Array.isArray(data)
           ? data
@@ -442,7 +460,7 @@ export default function ReviewerDashboard() {
         setHasLoadedOnce(true);
       }
     },
-    [airtableToken, airtableBaseId, airtableTableName]
+    [airtableToken, airtableBaseId, airtableTableName, columnMapping, usingHackatime]
   );
 
   useEffect(() => {
@@ -471,7 +489,16 @@ export default function ReviewerDashboard() {
             setAirtableBaseId(data.airtable_base_id)
             setAirtableTableName(data.airtable_table_name)
             setShowAirtableGate(false)
-            fetchQueue(data.airtable_access_token, data.airtable_base_id, data.airtable_table_name)
+
+            if (data.column_mapping) {
+              // Saved mapping follows the reviewer across devices — load it
+              // silently and let the refetch effect pull the queue with it.
+              const saved = data.column_mapping as Record<string, string | null>
+              setColumnMapping(saved)
+              setUsingHackatime(Boolean(saved.hackatime_hours || saved.hackatime_projects))
+            } else {
+              fetchQueue(data.airtable_access_token, data.airtable_base_id, data.airtable_table_name)
+            }
           } else {
             setNeedsSetup(true)
             setShowAirtableGate(false)
@@ -642,6 +669,29 @@ export default function ReviewerDashboard() {
     setShowAirtableGate(false);
 
     await fetchQueue(nextToken, nextBaseId, nextTable);
+  };
+
+  const handleConfirmColumns = async () => {
+    setColumnMapping(draftMapping);
+    setShowColumnModal(false);
+
+    // Persist per-reviewer so the mapping follows them across devices.
+    try {
+      await fetch(`${backendUrl}/api/config/save`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          airtable_base_id: airtableBaseId,
+          airtable_table_name: airtableTableName,
+          column_mapping: draftMapping,
+        }),
+      });
+    } catch (err) {
+      console.error("Failed to save column mapping", err);
+    }
+    // setColumnMapping changes fetchQueue's identity → refetch effect reloads
+    // the queue with the confirmed mapping.
   };
 
   const handleEditConfig = () => {
@@ -1131,6 +1181,128 @@ export default function ReviewerDashboard() {
 
   return (
     <>
+      {showColumnModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border-2 border-[#17171d] bg-[#fdf6ec] p-5 shadow-[0_10px_0_#17171d]">
+            <div className="mb-1 flex items-center gap-2">
+              <span className="text-lg">🔎</span>
+              <h2 className="text-lg font-black uppercase tracking-tight text-[#17171d]">
+                Confirm columns
+              </h2>
+            </div>
+            <p className="mb-4 text-xs font-semibold text-[#5b6472]">
+              We guessed which of your Airtable columns map to each field. Fix
+              anything that looks off — this gets saved and follows you across
+              devices.
+            </p>
+
+            <div className="space-y-2.5">
+              {[
+                { key: "github_url", label: "GitHub URL" },
+                { key: "playable_url", label: "Playable / Demo URL" },
+                { key: "target_program", label: "Target Program" },
+                { key: "status", label: "Status" },
+                { key: "birth_year", label: "Birth Year" },
+                { key: "slack_id", label: "Slack ID" },
+                { key: "description", label: "Description" },
+                { key: "public_comment", label: "Public Comment" },
+              ].map((field) => (
+                <div key={field.key} className="flex items-center gap-3">
+                  <label className="w-36 shrink-0 text-[11px] font-black uppercase tracking-wide text-[#17171d]">
+                    {field.label}
+                  </label>
+                  <select
+                    value={draftMapping[field.key] ?? ""}
+                    onChange={(e) =>
+                      setDraftMapping((prev) => ({
+                        ...prev,
+                        [field.key]: e.target.value || null,
+                      }))
+                    }
+                    className="flex-1 rounded-xl border-2 border-[#17171d] bg-white px-2 py-1.5 text-xs font-semibold text-[#17171d]"
+                  >
+                    <option value="">— none —</option>
+                    {availableColumns.map((col) => (
+                      <option key={col} value={col}>
+                        {col}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 rounded-xl border-2 border-dashed border-[#17171d] bg-[#fff] p-3">
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-black uppercase tracking-wide text-[#17171d]">
+                <input
+                  type="checkbox"
+                  checked={usingHackatime}
+                  onChange={(e) => {
+                    const on = e.target.checked;
+                    setUsingHackatime(on);
+                    if (!on)
+                      setDraftMapping((prev) => ({
+                        ...prev,
+                        hackatime_hours: null,
+                        hackatime_projects: null,
+                      }));
+                  }}
+                  className="h-4 w-4 accent-[#ec3750]"
+                />
+                Tracking time with Hackatime?
+              </label>
+
+              {usingHackatime && (
+                <div className="mt-3 space-y-2.5">
+                  {[
+                    { key: "hackatime_hours", label: "Hackatime Hours" },
+                    { key: "hackatime_projects", label: "Hackatime Projects" },
+                  ].map((field) => (
+                    <div key={field.key} className="flex items-center gap-3">
+                      <label className="w-36 shrink-0 text-[11px] font-black uppercase tracking-wide text-[#17171d]">
+                        {field.label}
+                      </label>
+                      <select
+                        value={draftMapping[field.key] ?? ""}
+                        onChange={(e) =>
+                          setDraftMapping((prev) => ({
+                            ...prev,
+                            [field.key]: e.target.value || null,
+                          }))
+                        }
+                        className="flex-1 rounded-xl border-2 border-[#17171d] bg-white px-2 py-1.5 text-xs font-semibold text-[#17171d]"
+                      >
+                        <option value="">— none —</option>
+                        {availableColumns.map((col) => (
+                          <option key={col} value={col}>
+                            {col}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setShowColumnModal(false)}
+                className="rounded-full border-2 border-[#17171d] bg-white px-4 py-1.5 text-xs font-black uppercase tracking-widest text-[#17171d]"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmColumns}
+                className="rounded-full border-2 border-[#17171d] bg-[#ec3750] px-4 py-1.5 text-xs font-black uppercase tracking-widest text-white shadow-[0_4px_0_#17171d]"
+              >
+                Looks good — load queue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {needsSetup && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
               <div className="w-full max-w-md rounded-3xl border-2 border-[#17171d] bg-[#f9d8de] p-5 shadow-[0_10px_0_#17171d]">
@@ -1530,6 +1702,16 @@ export default function ReviewerDashboard() {
               {scanProgress.total > 0 && scanProgress.done < scanProgress.total
                 ? `Scanning... ${scanProgress.done}/${scanProgress.total}`
                 : "Rescan all"}
+            </button>
+            <button
+              onClick={() => {
+                setDraftMapping(columnMapping ?? {});
+                setShowColumnModal(true);
+              }}
+              disabled={!availableColumns.length}
+              className="ml-1.5 rounded-full border border-[#17171d] bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-widest text-[#17171d] disabled:opacity-40"
+            >
+              Columns
             </button>
           </div>
 
