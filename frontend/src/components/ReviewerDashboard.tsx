@@ -1532,7 +1532,7 @@ export default function ReviewerDashboard() {
                     
                     <button
                       onClick={startDemo}
-                      className="mt-2 flex-w-full items-center justify-center gap-2 rounded-xl border-2 border-[#17171d] bg-white py-3 text-sm font-black text-[#17171d] transition-all active:translate-y-1"
+                      className="mt-2 flex-w-full items-center justify-center gap-2 rounded-xl border-2 border-[#17171d] bg-white px-3 py-3 bg-[#ec3750] text-sm font-black text-[#17171d] transition-all active:translate-y-1"
                     >
                       Try a live demo
                     </button>
