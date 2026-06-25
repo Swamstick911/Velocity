@@ -69,6 +69,79 @@ export interface Submission {
   slack_id?: string | null;
 }
 
+const DEMO_QUEUE: Submission[] = [
+  {
+    id: "demo-1",
+    github_url: "https://github.com/hackclub/sprig",
+    playable_url: "https://sprig.hackclub.com",
+    target_program: "Boba",
+    status: "pending",
+    birth_year: 2009,
+    description: "A console made completely out of scratch which can run games and custom firmwares!",
+    public_comment: "",
+    private_comment: "",
+    hackatime_hours: 30,
+    hackatime_projects: ["sprig-website"],
+    slack_id: "U0DEM001",
+  },
+  {
+    id: "demo-2",
+    github_url: "https://github.com/Swamstick911/Shelby",
+    playable_url: "https://shelby-nu.vercel.app",
+    target_program: "Hack Club: The Game",
+    status: "pending",
+    birth_year: 2010,
+    description: "A working operating system in micropython for Sprig!",
+    public_comment: "",
+    private_comment: "",
+    hackatime_hours: 40,
+    hackatime_projects: ["Shelby"],
+    slack_id: "U0DEMO02"
+  },
+  {
+    id: "demo-3",
+    github_url: "https://github.com/hackclub/sinerider",
+    playable_url: "https://sinerider.hackclub.com",
+    target_program: "Arcade",
+    status: "pending",
+    birth_year: 2008,
+    description: "A math puzzle game where you draw equations to guide a guy on a surfboard to get all the coins",
+    public_comment: "",
+    private_comment: "",
+    hackatime_hours: 50,
+    hackatime_projects: ["sinerider"],
+    slack_id: "U0DEMO03",
+  },
+  {
+    id: "demo-4",
+    github_url: "https://github.com/Swamstick911/The-Vault-Portfolio-",
+    playable_url: "https://the-vault-portfolio.vercel.app",
+    target_program: "Stardance",
+    status: "pending",
+    birth_year: 2010,
+    description: "A portfolio website for showcasing my projects, built with Astro",
+    public_comment: "",
+    private_comment: "",
+    hackatime_hours: 16,
+    hackatime_projects: ["The-Vault-Portfolio"],
+    slack_id: "U0DEMO04",
+  },
+  {
+    id: "demo-5",
+    github_url: "https://github.com/hackclub/site",
+    playable_url: "https://this-demo-link-does-not-exist.hackclub.dev",
+    target_program: "High Seas",
+    status: "pending",
+    birth_year: 2006,
+    description: "Personal portfolio site. The live link might be down right now, sorry!",
+    public_comment: "",
+    private_comment: "",
+    hackatime_hours: 8,
+    hackatime_projects: ["portfolio"],
+    slack_id: "U0DEMO05",
+  },
+]
+
 interface RepoStats {
   name: string;
   description: string | null;
@@ -327,6 +400,8 @@ export default function ReviewerDashboard() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyCounts, setHistoryCounts] = useState<Record<string, number>>({});
 
+  const [demoMode, setDemoMode] = useState(false);
+
   const [statusFilter, setStatusFilter] = useState("all");
   const [programFilter, setProgramFilter] = useState("all");
   const [onlyWithHistory, setOnlyWithHistory] = useState(false);
@@ -462,6 +537,11 @@ export default function ReviewerDashboard() {
     },
     [airtableToken, airtableBaseId, airtableTableName, columnMapping, usingHackatime]
   );
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("demo") === "1") startDemo();
+  }, []);
 
   useEffect(() => {
     if (airtableToken && airtableBaseId && airtableTableName) {
@@ -973,11 +1053,33 @@ export default function ReviewerDashboard() {
     }
   };
 
+  function startDemo() {
+    setDemoMode(true);
+    setEmail("demo@velocity.app");
+    setShowAirtableGate(false);
+    setNeedsSetup(false);
+    setQueue(DEMO_QUEUE);
+    setActiveProject(DEMO_QUEUE[0]);
+    setFetchStatus("success");
+    setHasLoadedOnce(true);
+    if (typeof window !== "undefined") {
+      window.history.replaceState({}, "", "/dashboard?demo=1");
+    }
+  }
+
   const handleStatusUpdate = async (newStatus: string) => {
     if (!activeProject) return;
 
     if (newStatus === "Rejected" && !publicComment.trim()) {
       alert("Pick a reason (tap a public copypasta) before rejecting- it gets DM'd to the submitter");
+      return;
+    }
+
+    if (demoMode) {
+      setQueue((prev) => prev.filter((p) => p.id !== activeProject.id));
+      setActiveProject(null);
+      setPublicComment("");
+      setPrivateComment("");
       return;
     }
 
@@ -1181,6 +1283,15 @@ export default function ReviewerDashboard() {
 
   return (
     <>
+      {demoMode && (
+        <div className="fixed bottom-4 left-1/2 z-[55] flex -translate-x-1/2 items-center gap-3 rounded-full border-2 border-[#17171d] bg-[#ffb703] px-4 py-1.5 text-xs font-black uppercase tracking-widest text-[#17171d] shadow-[0_4px_0_#17171d]">
+          Demo Mode . Mock data
+          <a href="/" className="rounded-full bg-[#17171d] px-2 py-0.5 text-white">
+            Exit
+          </a>
+        </div>
+      )}
+      
       {showColumnModal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl border-2 border-[#17171d] bg-[#fdf6ec] p-5 shadow-[0_10px_0_#17171d]">
@@ -1417,7 +1528,14 @@ export default function ReviewerDashboard() {
                           className="h-4 w-4"
                           alt="Airtable"/>
                           Login with Airtable
-                      </button>
+                    </button>
+                    
+                    <button
+                      onClick={startDemo}
+                      className="mt-2 flex-w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#17171d] bg-white py-3 text-sm font-black text-[#17171d] transition-all active:translate-y-1"
+                    >
+                      Try a live demo without making an account
+                    </button>
 
                       <p className="mt-3 text-center text-xs font-medium text-[#17171d]/60 lg:hidden">
                         Reviewing on mobile? Just log in- we&apos;ll load the base you set up on desktop.
