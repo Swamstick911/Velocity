@@ -17,6 +17,7 @@ from pydantic import BaseModel, HttpUrl, field_validator
 from dotenv import load_dotenv
 from starlette.middleware.sessions import SessionMiddleware
 from urllib.parse import urlencode
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 from engine.context import build_context, _fetch_root_commit_sha
 from engine.runner import evaluate
@@ -34,6 +35,8 @@ AIRTABLE_CLIENT_SECRET = os.getenv("AIRTABLE_CLIENT_SECRET")
 AIRTABLE_REDIRECT_URI = os.getenv("AIRTABLE_REDIRECT_URI")
 SESSION_SECRET_KEY = os.getenv("SESSION_SECRET", secrets.token_hex(32))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+auth_code_signer = URLSafeTimedSerializer(SESSION_SECRET_KEY, salt="oauth-handoff")
 
 SLACK_BOT_TOKEN = os.getenv("SLACK_BOT_TOKEN")
 SLACK_API_URL = "https://slack.com/api/chat.postMessage"
@@ -452,8 +455,22 @@ async def airtable_callback(request: Request, code: str | None = None, state: st
         conn.close()
 
         request.session["email"] = email
-
+    handoff = auth_code_signer.dumps(email)
     return RedirectResponse(f"{FRONTEND_URL}/dashboard?email={email}")
+
+@app.post("api/auth/exchange")
+async def exchange_code(request: Request):
+    body = await request.json()
+    code = body.get("code")
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing code")
+    try:
+        email = auth_code_signer.loads(code, max_age=120)
+    except SignatureExpired:
+        raise HTTPException(status_code=401, detail="Login code expired, please try again")
+    except BadSignature:
+        raise HTTPException(status_code=401, detail="Invalid login code")
+    return await _reviewer_config_payload(email)
 
 @app.get("/api/auth/me")
 async def get_me(request: Request):
@@ -463,11 +480,7 @@ async def get_me(request: Request):
     return {"email": email}
 
 @app.get("/api/config/get")
-async def get_config(request: Request):
-    email = request.session.get("email")
-    if not email:
-        raise HTTPException(status_code=401, detail="Not logged in")
-    
+async def _reviewer_config_payload(email: str) -> dict:
     conn = get_db()
     row = conn.execute(
         "SELECT * FROM reviewers WHERE email = ?", (email,)
@@ -509,7 +522,7 @@ async def get_config(request: Request):
                 conn.commit()
                 conn.close()
                 logger.info("Refreshed Airtable token for %s", email)
-                
+
     return {
         "email": row["email"],
         "airtable_access_token": access_token,
@@ -518,6 +531,13 @@ async def get_config(request: Request):
         "column_mapping": json.loads(row["column_mapping"]) if row["column_mapping"] else None,
     }
 
+@app.get("api/config/get")
+async def get_config(request: Request):
+    email = request.session.get("email")
+    if not email:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    return await _reviewer_config_payload(email)
+
 @app.post("/api/auth/logout")
 async def logout(request: Request):
     request.session.clear()
@@ -525,26 +545,34 @@ async def logout(request: Request):
 
 @app.post("/api/config/save")
 async def save_config(request: Request):
-    email = request.session.get("email")
-    if not email:
-        raise HTTPException(status_code=401, detail="Not logged in")
-
     body = await request.json()
     base_id = body.get("airtable_base_id")
     table_name = body.get("airtable_table_name")
     column_mapping = body.get("column_mapping")
+    access_token = body.get("airtable_access_token")
+
+    email = request.session.get("email")
+    if not email:
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Not logged in")
+        conn = get_db()
+        row = conn.execute(
+            "SELECT email FROM reviewers WHERE airtable_access_token = ?", (access_token,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            raise HTTPException(status_code=401, detail="Not logged in")
+        email = row["email"]
 
     if not base_id or not table_name:
         raise HTTPException(status_code=400, detail="Missing required fields")
-    
+
     conn = get_db()
     conn.execute("""
         UPDATE reviewers
         SET airtable_base_id = ?, airtable_table_name = ?, column_mapping = ?
         WHERE email = ?
-    """, (base_id, table_name,
-          json.dumps(column_mapping) if column_mapping is not None else None,
-          email))
+    """, (base_id, table_name, json.dumps(column_mapping) if column_mapping is not None else None, email))
     conn.commit()
     conn.close()
 

@@ -555,41 +555,49 @@ export default function ReviewerDashboard() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const emailFromUrl = params.get("email");
+    const code = params.get("code");
+    if (!code) return;
 
-    if (emailFromUrl) {
-      fetch(`${backendUrl}/api/config/get`, { credentials: "include" })
-      .then(res => res.json())
-      .then(data => {
-        if (data.airtable_access_token) {
-          setEmail(data.email || emailFromUrl);
-          setAirtableToken(data.airtable_access_token)
-
-          if (data.airtable_base_id && data.airtable_table_name) {
-            setAirtableBaseId(data.airtable_base_id)
-            setAirtableTableName(data.airtable_table_name)
-            setShowAirtableGate(false)
-
-            if (data.column_mapping) {
-              // Saved mapping follows the reviewer across devices — load it
-              // silently and let the refetch effect pull the queue with it.
-              const saved = data.column_mapping as Record<string, string | null>
-              setColumnMapping(saved)
-              setUsingHackatime(Boolean(saved.hackatime_hours || saved.hackatime_projects))
-            } else {
-              fetchQueue(data.airtable_access_token, data.airtable_base_id, data.airtable_table_name)
-            }
-          } else {
-            setNeedsSetup(true)
-            setShowAirtableGate(false)
-          }
-          window.history.replaceState({}, "", "/dashboard")
-        }
+    fetch(`${backendUrl}/api/auth/exchange`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`exchange failed: ${res.status}`);
+        return res.json();
       })
-      .catch((err) => 
-        console.error("Failed to fetch config from backend", err));
-    }
-  }, [searchParams])
+      .then((data) => {
+        if (!data.airtable_access_token) throw new Error("no token in exchange");
+        setEmail(data.email || "");
+        setAirtableToken(data.airtable_access_token);
+
+        if (data.airtable_base_id && data.airtable_table_name) {
+          setAirtableBaseId(data.airtable_base_id);
+          setAirtableTableName(data.airtable_table_name);
+          setShowAirtableGate(false);
+
+          if (data.column_mapping) {
+            const saved = data.column_mapping as Record<string, string | null>;
+            setColumnMapping(saved);
+            setUsingHackatime(Boolean(saved.hackatime_hours || saved.hackatime_projects));
+          } else {
+            fetchQueue(data.airtable_access_token, data.airtable_base_id, data.airtable_table_name);
+          }
+        } else {
+          setNeedsSetup(true);
+          setShowAirtableGate(false);
+        }
+        window.history.replaceState({}, "", "/dashboard");
+      })
+      .catch((err) => {
+        console.error("OAuth exchange failed", err);
+        //Dont hang on the skeleton, drop back to the login gate
+        setShowAirtableGate(true);
+        setHasLoadedOnce(true);
+        window.history.replaceState({}, "", "/dashboard");
+      });
+  }, [searchParams]);
 
   const summaryCounts = useMemo(() => {
     return {
@@ -765,6 +773,7 @@ export default function ReviewerDashboard() {
           airtable_base_id: airtableBaseId,
           airtable_table_name: airtableTableName,
           column_mapping: draftMapping,
+          airtable_access_token: airtableToken,
         }),
       });
     } catch (err) {
@@ -1263,7 +1272,7 @@ export default function ReviewerDashboard() {
 
   const hasAirtableCreds = Boolean(airtableToken && airtableBaseId && airtableTableName);
 
-  const isReturningFromOAuth = searchParams.has("email");
+  const isReturningFromOAuth = searchParams.has("code");
 
   const gateBlocked = preflight?.risk?.gate === "block";
   const approveBlocked = gateBlocked && !gateAcknowledged;
@@ -1482,6 +1491,7 @@ export default function ReviewerDashboard() {
                       body: JSON.stringify({
                         airtable_base_id: baseId,
                         airtable_table_name: tableName,
+                        airtable_access_token: airtableToken,
                       }),
                     })
 
@@ -1532,7 +1542,7 @@ export default function ReviewerDashboard() {
                     
                     <button
                       onClick={startDemo}
-                      className="mt-2 flex-w-full items-center justify-center gap-2 rounded-xl border-2 border-[#17171d] bg-white px-3 py-3 bg-[#ec3750] text-sm font-black text-[#17171d] transition-all active:translate-y-1"
+                      className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#17171d] bg-white px-3py-3 text-sm font-black text-[#17171d] transition-all active:translate-y-1"
                     >
                       Try a live demo
                     </button>
