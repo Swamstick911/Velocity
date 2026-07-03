@@ -456,7 +456,7 @@ async def airtable_callback(request: Request, code: str | None = None, state: st
 
         request.session["email"] = email
     handoff = auth_code_signer.dumps(email)
-    return RedirectResponse(f"{FRONTEND_URL}/dashboard?email={email}")
+    return RedirectResponse(f"{FRONTEND_URL}/dashboard?code={handoff}")
 
 @app.post("/api/auth/exchange")
 async def exchange_code(request: Request):
