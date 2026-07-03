@@ -287,9 +287,13 @@ function DashboardSkeleton() {
 function DashboardError({
   message,
   onRetry,
+  onEditConfig,
+  onReconnect,
 }: {
   message: string;
   onRetry: () => void;
+  onEditConfig?: () => void;
+  onReconnect?: () => void;
 }) {
   return (
     <div className="min-h-screen bg-[#f7f3ea] px-4 py-10 text-[#17171d]">
@@ -303,12 +307,30 @@ function DashboardError({
           {message}
         </p>
 
-        <button
-          onClick={onRetry}
-          className="mt-6 rounded-2xl border-4 border-[#17171d] bg-[#338eda] px-5 py-3 text-sm font-black text-white shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none"
-        >
-          Try again
-        </button>
+        <div className="mt-6 flex flex-wrap gap-3">
+          <button
+            onClick={onRetry}
+            className="rounded-2xl border-4 border-[#17171d] bg-[#338eda] px-5 py-3 text-sm font-black text-white shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none"
+          >
+            Try again
+          </button>
+          {onEditConfig && (
+            <button
+              onClick={onEditConfig}
+              className="rounded-2xl border-4 border-[#17171d] bg-[#ffd43b] px-5 py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none"
+            >
+              Edit base &amp; table
+            </button>
+          )}
+          {onReconnect && (
+            <button
+              onClick={onReconnect}
+              className="rounded-2xl border-4 border-[#17171d] bg-white px-5 py-3 text-sm font-black text-[#17171d] shadow-[0_4px_0_#17171d] transition active:translate-y-1 active:shadow-none"
+            >
+              Re-connect Airtable
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -484,7 +506,13 @@ export default function ReviewerDashboard() {
 
           try {
             const err = await res.json();
-            if (err?.error) message = err.error;
+            const detailType = err?.details?.error?.type;
+            if (res.status === 403 || detailType === "INVALID_PERMISSIONS_OR_MODEL_NOT_FOUND") {
+              message =
+                "Airtable won't let this login read that base. When you log in, Airtable has to grant access to this exact base. Fix: in Airtable → your profile → Integrations, revoke Velocity, then hit “Re-connect Airtable” below and add this base on the consent screen. Also double-check the Base ID / Table name with “Edit base & table”.";
+            } else if (err?.error) {
+              message = err.error;
+            }
           } catch {}
 
           throw new Error(message);
@@ -1283,7 +1311,23 @@ export default function ReviewerDashboard() {
   }
 
   if(fetchStatus === "error") {
-    return <DashboardError message={fetchError || "Unknown error"} onRetry={() => fetchQueue()} />;
+    return (
+      <DashboardError
+        message={fetchError || "Unknown error"}
+        onRetry={() => fetchQueue()}
+        onEditConfig={() => {
+          // Leave the error state and open the setup modal so a reviewer who
+          // pointed at the wrong base can change it (works on mobile too).
+          setAirtableBaseIdInput(airtableBaseId);
+          setAirtableTableNameInput(airtableTableName);
+          setNeedsSetup(true);
+          setFetchStatus("loading");
+        }}
+        onReconnect={() => {
+          if (backendUrl) window.location.href = `${backendUrl}/api/auth/login`;
+        }}
+      />
+    );
   }
 
   if(fetchStatus === "success" && queue.length === 0) {
