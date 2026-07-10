@@ -39,8 +39,10 @@ function collectColumns(records: any[]): string[] {
     return [...cols];
 }
 
-function detectColumns(records: any[], usingHackatime: boolean): Record<string, string | null> {
-    const cols = collectColumns(records);
+function detectColumns(records: any[], usingHackatime: boolean, knownColumns?: string[]): Record<string, string | null> {
+    // Prefer the full schema column list so empty columns (which Airtable omits
+    // from record data) can still be name-matched; fall back to record-derived.
+    const cols = knownColumns && knownColumns.length ? knownColumns : collectColumns(records);
 
     // sample up to 25 non-empty values per column
     const samples: Record<string, any[]> = {};
@@ -143,6 +145,36 @@ async function fetchAirtableRecords (
     return records;
 }
 
+// Airtable's records API drops empty fields, so columns that are blank across
+// all rows never show up in the data. Read the real column list from the base
+// schema (needs the schema.bases:read scope, which we request). Best-effort:
+// returns [] on any failure so we fall back to the record-derived columns.
+async function fetchAirtableColumns(
+    airtableToken: string,
+    airtableBaseId: string,
+    airtableTableName: string
+): Promise<string[]> {
+    try {
+        const res = await fetch(`${AIRTABLE_API_BASE}/meta/bases/${airtableBaseId}/tables`, {
+            method: "GET",
+            headers: { Authorization: `Bearer ${airtableToken}` },
+            cache: "no-store",
+        });
+        if (!res.ok) return [];
+        const data = await res.json();
+        const tables = Array.isArray(data?.tables) ? data.tables : [];
+        const match = tables.find(
+            (t: any) => t?.name === airtableTableName || t?.id === airtableTableName
+        );
+        if (!match) return [];
+        return (Array.isArray(match.fields) ? match.fields : [])
+            .map((f: any) => f?.name)
+            .filter((n: any): n is string => typeof n === "string" && n.length > 0);
+    } catch {
+        return [];
+    }
+}
+
 async function updateAirtableRecord(
     airtableToken: string,
     airtableBaseId: string,
@@ -228,8 +260,18 @@ export async function POST(req: NextRequest) {
             airtableTableName
         );
 
-        const columns = collectColumns(records);
-        const mapping = columnMapping ?? detectColumns(records, usingHackatime !== false);
+        const schemaColumns = await fetchAirtableColumns(
+            airtableToken,
+            airtableBaseId,
+            airtableTableName
+        );
+        const recordColumns = collectColumns(records);
+        // Schema first (has every column, even empty ones), then any record-only
+        // columns as a safety net if the schema call failed or is incomplete.
+        const columns = schemaColumns.length
+            ? Array.from(new Set([...schemaColumns, ...recordColumns]))
+            : recordColumns;
+        const mapping = columnMapping ?? detectColumns(records, usingHackatime !== false, columns);
         const submissions = records.map((r: any) => normalizeWithMapping(r, mapping));
 
         return NextResponse.json({
